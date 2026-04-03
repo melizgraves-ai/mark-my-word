@@ -31,7 +31,7 @@ const CONFIG = {
   LIGHT_TEXT:     "#2C1A0A",   // deep brown text
   LIGHT_MUTED:    "#9A7858",   // secondary labels
 
-  AI_ENDPOINT: "http://127.0.0.1:52347/v1/chat/completions",
+  AI_ENDPOINT: "http://127.0.0.1:11434/v1/chat/completions",
   AI_MODEL: "Phi-3.5-mini-instruct-generic-cpu:1",
   SHOW_AI_PROMPTS: true,
   STATUS_GREEN: "#5a8a5a",
@@ -520,13 +520,39 @@ select { cursor: pointer; }
 }
 .cal-day {
   aspect-ratio: 1;
-  border-radius: 3px;
+  border-radius: 6px;
   background: var(--surf-raised);
   border: 1px solid var(--border);
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  position: relative;
 }
+.cal-day:hover { border-color: var(--ac); }
+.cal-num { font-size: 0.55rem; color: var(--txt-muted); position: absolute; top: 2px; right: 4px; z-index: 1; }
 .cal-day.has-reading { background: var(--ac); border-color: var(--ac); }
-.cal-day.today { border-color: var(--ac-light); }
-.cal-day.empty { background: transparent; border-color: transparent; }
+.cal-day.has-reading .cal-num { color: var(--bg); font-weight: 600; }
+.cal-day.today { border-color: var(--ac); border-width: 2px; }
+.cal-day.today .cal-num { color: var(--txt); font-weight: 600; }
+.cal-day.future { opacity: 0.4; }
+.cal-day.empty { background: transparent; border-color: transparent; cursor: default; }
+.cal-day.empty:hover { border-color: transparent; }
+.cal-reminder {
+  position: absolute;
+  top: 3px;
+  left: 4px;
+  right: 16px;
+  font-size: 0.8rem;
+  line-height: 1.3;
+  color: var(--ac);
+  font-family: Georgia, 'Times New Roman', serif;
+  font-style: italic;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  pointer-events: none;
+}
 
 /* Log entries */
 .log-entry {
@@ -1362,13 +1388,33 @@ function renderTrack() {
   const monthKey = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
   const daysThisMonth = readDates.filter(d => d.startsWith(monthKey)).length;
 
-  // Calendar heatmap for current month
+  // Calendar — engaging monthly view with day details
   const year = now.getFullYear(), month = now.getMonth();
-  const firstDay = new Date(year, month, 1).getDay(); // 0=Sun
+  const firstDay = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const todayDate = now.getDate();
   const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-  let calHTML = `<div style="font-size:0.85rem;color:var(--txt-muted);margin-bottom:0.5rem">${monthNames[month]} ${year}</div>`;
+
+  // Build a map of what was read each day
+  const dayReadings = {};
+  log.forEach(e => {
+    const dk = dateKey(e.date);
+    if (!dayReadings[dk]) dayReadings[dk] = [];
+    let ref = `${displayNameFull(e.book)} ${e.chapter}`;
+    if (e.verseStart) { ref += `:${e.verseStart}`; if (e.verseEnd && e.verseEnd !== e.verseStart) ref += `-${e.verseEnd}`; }
+    dayReadings[dk].push(ref);
+  });
+
+  // Get today's plan task
+  const activePlansForCal = getPlans().filter(p => p.status === 'active');
+  const todayPlanTask = activePlansForCal.map(p => getTodayTask(p)).find(t => t);
+
+  const calReminders = lsGet('cal_reminders', {});
+
+  let calHTML = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem">
+    <div style="font-family:Georgia,serif;font-size:1rem;color:var(--ac)">${monthNames[month]} ${year}</div>
+    <div style="font-size:0.8rem;color:var(--txt-muted)">${daysThisMonth} of ${daysInMonth} days</div>
+  </div>`;
   calHTML += '<div class="cal-grid">';
   ['S','M','T','W','T','F','S'].forEach(d => { calHTML += `<div class="cal-label">${d}</div>`; });
   for (let i = 0; i < firstDay; i++) calHTML += '<div class="cal-day empty"></div>';
@@ -1376,9 +1422,23 @@ function renderTrack() {
     const dk = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
     const hasR = readDates.includes(dk);
     const isToday = d === todayDate;
-    calHTML += `<div class="cal-day${hasR ? ' has-reading' : ''}${isToday ? ' today' : ''}"></div>`;
+    const hasReminder = !!calReminders[dk];
+    const reminderText = calReminders[dk] || '';
+    calHTML += `<div class="cal-day${hasR ? ' has-reading' : ''}${isToday ? ' today' : ''}${d > todayDate ? ' future' : ''}" data-calday="${dk}"><span class="cal-num">${d}</span>${reminderText ? `<span class="cal-reminder">${reminderText}</span>` : ''}</div>`;
   }
   calHTML += '</div>';
+
+  // Today prompt if nothing read today
+  if (!readDates.includes(todayKey())) {
+    let nudge = 'Start your reading for today!';
+    if (todayPlanTask) {
+      nudge = todayPlanTask.reading || todayPlanTask.passage || todayPlanTask.habit || nudge;
+    }
+    calHTML += `<div style="text-align:center;padding:0.75rem;background:var(--surf-raised);border:1px solid var(--border);border-radius:8px;margin-top:0.75rem;cursor:pointer" id="calNudge">
+      <div style="font-size:0.8rem;color:var(--txt-muted);margin-bottom:0.2rem">Today</div>
+      <div style="font-size:0.9rem;color:var(--ac)">${nudge}</div>
+    </div>`;
+  }
 
   // Reading log (last 50) — store original index for deletion
   let logHTML = '';
@@ -1430,6 +1490,107 @@ function renderTrack() {
         <button class="btn" id="mlSave">Log Session</button>
       </div>
     </div>`;
+
+  // Calendar day click — overlay popup
+  el.querySelectorAll('.cal-day[data-calday]').forEach(day => {
+    day.addEventListener('click', () => {
+      const dk = day.dataset.calday;
+
+      // Gather activity for this day
+      const readings = [];
+      log.forEach(e => { if (dateKey(e.date) === dk) {
+        let ref = `${displayNameFull(e.book)} ${e.chapter}`;
+        if (e.verseStart) { ref += `:${e.verseStart}`; if (e.verseEnd && e.verseEnd !== e.verseStart) ref += `-${e.verseEnd}`; }
+        readings.push(ref);
+      }});
+      const reminders = lsGet('cal_reminders', {});
+      const dayReminder = reminders[dk] || '';
+
+      // Clean up any existing popup
+      let old = document.getElementById('calPopup'); if (old) old.remove();
+      let oldBd = document.getElementById('calBackdrop'); if (oldBd) oldBd.remove();
+
+      // Build popup
+      let html = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem">
+        <span style="font-family:Georgia,serif;font-size:1.05rem;color:var(--ac)">${fmtDate(dk + 'T00:00:00')}</span>
+        <button id="calX" style="background:none;border:none;color:var(--txt-muted);font-size:1.2rem;cursor:pointer;padding:0 0.25rem">&times;</button>
+      </div>`;
+
+      // Activity section
+      if (readings.length) {
+        html += `<div style="margin-bottom:0.75rem">
+          <div style="font-size:0.7rem;text-transform:uppercase;color:var(--txt-muted);letter-spacing:0.05em;margin-bottom:0.4rem">Activity</div>
+          ${readings.map(r => `<div style="font-size:0.9rem;color:var(--txt);padding:0.2rem 0">${r}</div>`).join('')}
+        </div>`;
+      }
+
+      // Reminder/note
+      if (dayReminder) {
+        html += `<div style="font-size:0.85rem;color:var(--ac);font-style:italic;margin-bottom:0.75rem;padding:0.5rem;background:var(--surf-raised);border-radius:6px">${dayReminder}</div>`;
+      }
+
+      // Reminder input
+      html += `<div style="margin-bottom:0.75rem">
+        <input type="text" id="calNote" placeholder="Set a reminder..." value="${dayReminder}" style="width:100%;font-size:0.85rem">
+      </div>`;
+
+      // Action buttons — always the same four
+      html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem">
+        <button class="btn btn-sm" id="calARead">Read</button>
+        <button class="btn btn-sm btn-outline" id="calAPlan">Create Plan</button>
+        <button class="btn btn-sm btn-outline" id="calANote">Save Reminder</button>
+        <button class="btn btn-sm btn-outline" id="calACapture">Quick Thought</button>
+      </div>`;
+
+      const popup = document.createElement('div');
+      popup.id = 'calPopup';
+      popup.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--surf);border:1px solid var(--border);border-radius:12px;padding:1.25rem;z-index:400;width:90%;max-width:360px;box-shadow:0 8px 32px rgba(0,0,0,0.5);';
+      popup.innerHTML = html;
+
+      const backdrop = document.createElement('div');
+      backdrop.id = 'calBackdrop';
+      backdrop.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:399;';
+
+      document.body.appendChild(backdrop);
+      document.body.appendChild(popup);
+
+      const close = () => { popup.remove(); backdrop.remove(); };
+      backdrop.addEventListener('click', close);
+      document.getElementById('calX').addEventListener('click', close);
+
+      document.getElementById('calARead').addEventListener('click', () => { close(); switchTab('read'); });
+      document.getElementById('calAPlan').addEventListener('click', () => { close(); plansView = 'create'; switchTab('plans'); });
+      document.getElementById('calANote').addEventListener('click', () => {
+        const text = document.getElementById('calNote').value.trim();
+        const rem = lsGet('cal_reminders', {});
+        if (text) rem[dk] = text; else delete rem[dk];
+        lsSet('cal_reminders', rem);
+        const btn = document.getElementById('calANote');
+        btn.textContent = 'Saved!'; btn.style.background = 'var(--ac)'; btn.style.color = 'var(--bg)';
+        setTimeout(() => { close(); renderTrack(); }, 600);
+      });
+      document.getElementById('calACapture').addEventListener('click', () => {
+        close();
+        document.getElementById('captureOverlay').classList.add('open');
+        document.getElementById('captureText').focus();
+      });
+    });
+  });
+
+  // Calendar nudge — click to start reading
+  const calNudge = document.getElementById('calNudge');
+  if (calNudge) {
+    calNudge.addEventListener('click', () => {
+      // If there's a plan task, go to it; otherwise just switch to Read tab
+      const plans = getPlans().filter(p => p.status === 'active');
+      for (const p of plans) {
+        const t = getTodayTask(p);
+        if (t && t.items && t.items.length) { goToReader(t.items[0].book, t.items[0].chapter); return; }
+        if (t && t.passage) { if (goToPassage(t.passage)) return; }
+      }
+      switchTab('read');
+    });
+  }
 
   // Render Book view (status grid) + toggle logic
   renderBookView();
@@ -1969,12 +2130,10 @@ function getPlanProgress(plan) {
     const done = (plan.lessons || []).filter(l => l.done).length;
     return { total, done, pct: total ? Math.round(done / total * 100) : 0 };
   } else {
-    // Challenge — consistency
+    // Challenge — use dailyActions length if available, otherwise count from creation date
     const logDates = plan.logDates || [];
-    const start = new Date(plan.createdDate);
-    const now = new Date();
-    const totalDays = Math.max(1, Math.round((now - start) / 86400000) + 1);
-    return { total: totalDays, done: logDates.length, pct: totalDays ? Math.round(logDates.length / totalDays * 100) : 0 };
+    const total = plan.dailyActions ? plan.dailyActions.length : Math.max(1, Math.round((new Date() - new Date(plan.createdDate)) / 86400000) + 1);
+    return { total, done: logDates.length, pct: total ? Math.round(logDates.length / total * 100) : 0 };
   }
 }
 
@@ -2301,13 +2460,16 @@ IMPORTANT for all plans:
 
 For reading plans: {"type":"reading","title":"...","description":"...","books":["BookFilename"],"daysNeeded":N}
 For study plans: {"type":"study","title":"...","description":"...","topic":"clean topic label","daysNeeded":N,"lessons":[{"passage":"Book Chapter:Verses","question":"Reflection question"${includeJournal ? ',"journal":"Journaling prompt"' : ''}${includePrayers ? ',"prayer":"Prayer focus"' : ''}${includeMemory ? ',"memoryVerse":"Verse reference"' : ''}${includeChallenge ? ',"challenge":"Action step"' : ''}}]} — include 6-12 lessons.
-For challenge plans: {"type":"challenge","title":"...","description":"...","habit":"...","frequency":"daily|weekly","daysNeeded":N,"linkedPassages":["Reference"]}
+For challenge plans: {"type":"challenge","title":"...","description":"...","habit":"specific daily action, not vague","frequency":"daily|weekly","daysNeeded":N,"linkedPassages":["Reference"],"dailyActions":[{"day":1,"action":"Specific thing to do today","scripture":"Book Chapter:Verse","reflection":"Question to journal on"},...]}
+- Challenges MUST be at least 7 days (daysNeeded >= 7)
+- dailyActions should have a SPECIFIC action per day that builds progressively (week 1: awareness/reflection, week 2: action, week 3: outreach/habit). Not generic — each day should feel different.
+- Include a scripture and reflection prompt for every day.
 ${extrasStr}
 
 If generating ${count} proposals, vary the approach — different angles, lengths, or structures so the user has real choices. Use exact KJV book filenames (e.g. "Psalms", "1Corinthians", "SongofSolomon"). Return ONLY a valid JSON array, no markdown.`;
 
     try {
-      const content = await callAI(systemPrompt, goal, { temperature: 0.6, max_tokens: count > 1 ? 1200 : 600 });
+      const content = await callAI(systemPrompt, goal, { temperature: 0.6, max_tokens: count > 1 ? 2000 : 1200 });
       let proposals;
       try {
         const jsonStr = content.replace(/```json?\s*/g, '').replace(/```/g, '').trim();
@@ -2386,6 +2548,7 @@ If generating ${count} proposals, vary the approach — different angles, length
             plan.frequency = parsed.frequency || 'daily';
             plan.linkedPassages = parsed.linkedPassages || [];
             plan.logDates = [];
+            if (parsed.dailyActions) plan.dailyActions = parsed.dailyActions;
           }
 
           const plans = getPlans();
@@ -2464,9 +2627,14 @@ function renderPlanDetail() {
         <button class="btn btn-outline" id="markLessonDone">Mark Complete</button>
       </div>`;
     } else {
+      // Find today's specific action if dailyActions exist
+      const dayNum = (plan.logDates || []).length + 1;
+      const todayAction = plan.dailyActions ? plan.dailyActions.find(a => a.day === dayNum) || plan.dailyActions[plan.dailyActions.length - 1] : null;
       todayHTML = `<div class="plan-today-card">
-        <div style="font-size:0.75rem;color:var(--txt-muted);margin-bottom:0.3rem">TODAY'S CHALLENGE</div>
-        <div style="font-family:Georgia,serif;font-size:1.05rem;margin-bottom:0.75rem">${plan.habit}</div>
+        <div style="font-size:0.75rem;color:var(--txt-muted);margin-bottom:0.3rem">TODAY'S CHALLENGE — Day ${dayNum}</div>
+        <div style="font-family:Georgia,serif;font-size:1.05rem;margin-bottom:0.5rem">${todayAction ? todayAction.action : plan.habit}</div>
+        ${todayAction && todayAction.scripture ? `<div style="font-size:0.9rem;color:var(--ac);margin-bottom:0.4rem;cursor:pointer" class="action-scripture">${todayAction.scripture}</div>` : ''}
+        ${todayAction && todayAction.reflection ? `<div style="font-size:0.85rem;color:var(--txt-muted);font-style:italic;line-height:1.5;margin-bottom:0.75rem">${todayAction.reflection}</div>` : ''}
         <button class="btn" id="logChallengeToday">I did it today</button>
       </div>`;
     }
@@ -2485,6 +2653,20 @@ function renderPlanDetail() {
       upcomingHTML = '<div style="margin-bottom:1rem"><div style="font-size:0.8rem;color:var(--txt-muted);margin-bottom:0.5rem">UPCOMING</div>';
       upcoming.forEach(s => {
         upcomingHTML += `<div style="display:flex;justify-content:space-between;padding:0.4rem 0;border-bottom:1px solid var(--border);font-size:0.85rem"><span>${s.reading}</span><span style="color:var(--txt-muted)">${fmtDate(s.date + 'T00:00:00')}</span></div>`;
+      });
+      upcomingHTML += '</div>';
+    }
+  }
+  if (plan.type === 'challenge' && plan.dailyActions && plan.dailyActions.length) {
+    const dayNum = (plan.logDates || []).length + 1;
+    const upcoming = plan.dailyActions.filter(a => a.day > dayNum).slice(0, 5);
+    if (upcoming.length) {
+      upcomingHTML = '<div style="margin-bottom:1rem"><div style="font-size:0.8rem;color:var(--txt-muted);margin-bottom:0.5rem">COMING UP</div>';
+      upcoming.forEach(a => {
+        upcomingHTML += `<div style="padding:0.5rem 0;border-bottom:1px solid var(--border)">
+          <div style="display:flex;justify-content:space-between;font-size:0.85rem"><strong style="color:var(--txt)">Day ${a.day}</strong><span style="color:var(--ac);font-size:0.8rem">${a.scripture || ''}</span></div>
+          <div style="font-size:0.85rem;color:var(--txt-muted);margin-top:0.2rem">${a.action}</div>
+        </div>`;
       });
       upcomingHTML += '</div>';
     }
@@ -2647,6 +2829,11 @@ function renderPlanDetail() {
   }
 
   // Log challenge today
+  // Challenge scripture links
+  el.querySelectorAll('.action-scripture').forEach(s => {
+    s.addEventListener('click', () => goToPassage(s.textContent));
+  });
+
   const logBtn = document.getElementById('logChallengeToday');
   if (logBtn) {
     logBtn.addEventListener('click', () => {
@@ -3710,7 +3897,7 @@ updateThemeIcon(lsGet('theme', 'dark'));
 // Export
 document.getElementById('exportBtn').addEventListener('click', () => {
   const data = {};
-  const keys = ['reading_log','book_status','verse_notes','journal','random_thoughts','prayers','settings','theme','read_marks','plans','ai_config'];
+  const keys = ['reading_log','book_status','verse_notes','journal','random_thoughts','prayers','settings','theme','read_marks','plans','ai_config','cal_reminders'];
   keys.forEach(k => { data[k] = lsGet(k, null); });
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
