@@ -32,7 +32,7 @@ const CONFIG = {
   LIGHT_MUTED:    "#9A7858",   // secondary labels
 
   AI_ENDPOINT: "http://127.0.0.1:52347/v1/chat/completions",
-  AI_MODEL: "Phi-4-generic-cpu:1",
+  AI_MODEL: "Phi-3.5-mini-instruct-generic-cpu:1",
   SHOW_AI_PROMPTS: true,
   STATUS_GREEN: "#5a8a5a",
   STATUS_PURPLE: "#7a5a8a",
@@ -917,10 +917,17 @@ select { cursor: pointer; }
         <option value="anthropic">Anthropic (Claude)</option>
         <option value="custom">Custom endpoint</option>
       </select>
+      <div style="font-size:0.75rem;color:var(--txt-muted);margin-top:0.25rem">Endpoint</div>
       <input type="text" id="aiEndpointInput" placeholder="API endpoint URL" style="font-size:0.85rem">
+      <div style="font-size:0.75rem;color:var(--txt-muted);margin-top:0.25rem">Model</div>
       <input type="text" id="aiModelInput" placeholder="Model name" style="font-size:0.85rem">
-      <input type="password" id="aiKeyInput" placeholder="API key (stored locally)" style="font-size:0.85rem">
-      <button class="btn btn-sm btn-outline" id="aiSaveBtn">Save AI Settings</button>
+      <div style="display:flex;gap:0.5rem;align-items:center;margin-top:0.25rem">
+        <div style="flex:1">
+          <div style="font-size:0.75rem;color:var(--txt-muted);margin-bottom:0.25rem">API key</div>
+          <input type="password" id="aiKeyInput" placeholder="Optional for local" style="font-size:0.85rem;width:100%">
+        </div>
+      </div>
+      <button class="btn btn-outline" id="aiSaveBtn" style="margin-top:0.5rem">Save AI Settings</button>
     </div>
     <hr class="gold-rule">
     <div style="display:flex;flex-direction:column;gap:0.5rem">
