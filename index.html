@@ -1,0 +1,3790 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mark My Word</title>
+<script>
+// ═══════════════════════════════════════════════
+// CONFIG BLOCK — All settings in one place
+// ═══════════════════════════════════════════════
+const CONFIG = {
+  APP_NAME: "Mark My Word",
+
+  // --- DARK MODE (Theme A — Spiced Wine) ---
+  BG_COLOR:       "#1C0E0A",   // near-black with red undertone
+  SURFACE_COLOR:  "#2A1610",   // cards and panels
+  SURFACE_RAISED: "#361E14",   // elevated elements
+  BORDER_COLOR:   "#4A2818",   // warm wine border
+  ACCENT_COLOR:   "#C4854A",   // toasted caramel — tabs, verse numbers
+  ACCENT_LIGHT:   "#743014",   // spiced wine — buttons
+  TEXT_PRIMARY:   "#E8D0B0",   // warm cream text
+  TEXT_MUTED:     "#9A7060",   // secondary labels
+
+  // --- LIGHT MODE (Theme D — Warm Shortbread) ---
+  LIGHT_BG:       "#F2EAD8",   // parchment page
+  LIGHT_SURFACE:  "#FBF5E8",   // card surfaces
+  LIGHT_RAISED:   "#FFF8F0",   // elevated elements
+  LIGHT_BORDER:   "#D4C4A0",   // soft warm border
+  LIGHT_ACCENT:   "#7A301A",   // mulled merlot — tabs, verse numbers
+  LIGHT_ACCENT2:  "#84592B",   // toasted caramel — buttons
+  LIGHT_TEXT:     "#2C1A0A",   // deep brown text
+  LIGHT_MUTED:    "#9A7858",   // secondary labels
+
+  AI_ENDPOINT: "http://127.0.0.1:56795/v1/chat/completions",
+  AI_MODEL: "Phi-3.5-mini-instruct-generic-cpu:1",
+  SHOW_AI_PROMPTS: true,
+  STATUS_GREEN: "#5a8a5a",
+  STATUS_PURPLE: "#7a5a8a",
+  BADGE_GREEN: "#7aaa7a",
+  BADGE_ORANGE: "#c47a5a",
+
+  // 66 books — filenames match aruljohn/Bible-kjv repo exactly
+  BOOKS: [
+    "Genesis","Exodus","Leviticus","Numbers","Deuteronomy",
+    "Joshua","Judges","Ruth","1Samuel","2Samuel",
+    "1Kings","2Kings","1Chronicles","2Chronicles","Ezra",
+    "Nehemiah","Esther","Job","Psalms","Proverbs",
+    "Ecclesiastes","SongofSolomon","Isaiah","Jeremiah","Lamentations",
+    "Ezekiel","Daniel","Hosea","Joel","Amos",
+    "Obadiah","Jonah","Micah","Nahum","Habakkuk",
+    "Zephaniah","Haggai","Zechariah","Malachi",
+    "Matthew","Mark","Luke","John","Acts",
+    "Romans","1Corinthians","2Corinthians","Galatians","Ephesians",
+    "Philippians","Colossians","1Thessalonians","2Thessalonians",
+    "1Timothy","2Timothy","Titus","Philemon","Hebrews",
+    "James","1Peter","2Peter","1John","2John","3John",
+    "Jude","Revelation"
+  ],
+  OT_COUNT: 39, // first 39 are Old Testament
+};
+</script>
+<style>
+/* ═══════════════════════════════════════════════
+   DESIGN SYSTEM — All colors from CONFIG via JS
+   ═══════════════════════════════════════════════ */
+:root {
+  /* Dark — Spiced Wine (default) */
+  --ac: #C4854A;
+  --ac-light: #743014;
+  --bg: #1C0E0A;
+  --surf: #2A1610;
+  --surf-raised: #361E14;
+  --border: #4A2818;
+  --txt: #E8D0B0;
+  --txt-muted: #9A7060;
+  --status-green: #5a8a5a;
+  --status-purple: #7a5a8a;
+  --badge-green: #7aaa7a;
+  --badge-orange: #c47a5a;
+}
+*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+html, body { height:100%; }
+body {
+  background: var(--bg);
+  color: var(--txt);
+  font-family: system-ui, -apple-system, sans-serif;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* Header */
+.app-header {
+  background: var(--surf);
+  border-bottom: 1px solid var(--border);
+  padding: 0.75rem 1rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-shrink: 0;
+  z-index: 100;
+}
+.app-header h1 {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 1.15rem;
+  color: var(--ac);
+  white-space: nowrap;
+}
+.header-search {
+  flex: 1;
+  max-width: 320px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.header-search input {
+  width: 100%;
+  background: var(--surf-raised);
+  border: 1px solid var(--border);
+  color: var(--txt);
+  padding: 0.45rem 0.75rem;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.header-search input:focus { border-color: var(--ac); }
+.header-search .search-icon {
+  color: var(--txt-muted);
+  font-size: 0.85rem;
+  flex-shrink: 0;
+}
+.header-right { display:flex; align-items:center; gap:0.5rem; margin-left:auto; }
+.icon-btn {
+  background: none;
+  border: none;
+  color: var(--txt-muted);
+  font-size: 1.1rem;
+  cursor: pointer;
+  padding: 0.35rem;
+  border-radius: 4px;
+  transition: color 0.15s, background 0.15s;
+}
+.icon-btn:hover { color: var(--ac); background: var(--surf-raised); }
+
+/* Tabs Nav */
+.tabs-nav {
+  display: flex;
+  background: var(--surf);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  z-index: 99;
+}
+.tab-btn {
+  flex: 1;
+  background: none;
+  border: none;
+  color: var(--txt-muted);
+  padding: 0.75rem 0.5rem;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-family: system-ui, sans-serif;
+  border-bottom: 3px solid transparent;
+  transition: color 0.15s, border-color 0.15s;
+  text-align: center;
+}
+.tab-btn:hover { color: var(--txt); }
+.tab-btn.active { color: var(--ac); border-bottom-color: var(--ac); }
+
+/* Tab content */
+.tabs-content {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+}
+.panel {
+  display: none;
+  position: absolute;
+  inset: 0;
+  overflow-y: auto;
+  padding: 1.5rem;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.panel.active { display: block; opacity: 1; }
+.panel::-webkit-scrollbar { width: 6px; }
+.panel::-webkit-scrollbar-track { background: transparent; }
+.panel::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+/* Gold divider motif */
+.gold-rule {
+  border: none;
+  height: 1px;
+  background: var(--ac);
+  opacity: 0.3;
+  margin: 1.5rem 0;
+}
+
+/* Form elements */
+select, input[type="text"], input[type="number"], textarea {
+  background: var(--surf-raised);
+  border: 1px solid var(--border);
+  color: var(--txt);
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-family: system-ui, sans-serif;
+  outline: none;
+  transition: border-color 0.15s;
+}
+select:focus, input[type="text"]:focus, input[type="number"]:focus, textarea:focus {
+  border-color: var(--ac);
+}
+textarea { resize: vertical; min-height: 80px; line-height: 1.6; }
+select { cursor: pointer; }
+
+.btn {
+  background: var(--ac);
+  color: var(--bg);
+  border: none;
+  padding: 0.55rem 1.1rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 600;
+  font-family: system-ui, sans-serif;
+  transition: opacity 0.15s, transform 0.1s;
+}
+.btn:hover { opacity: 0.9; }
+.btn:active { transform: scale(0.97); }
+.btn-outline {
+  background: transparent;
+  color: var(--ac);
+  border: 1px solid var(--ac);
+}
+.btn-outline:hover { background: var(--ac); color: var(--bg); }
+.btn-sm { padding: 0.35rem 0.75rem; font-size: 0.8rem; }
+.btn-muted {
+  background: var(--surf-raised);
+  color: var(--txt-muted);
+  border: 1px solid var(--border);
+}
+.btn-muted:hover { color: var(--txt); border-color: var(--txt-muted); }
+
+/* Cards */
+.card {
+  background: var(--surf-raised);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1rem;
+}
+
+/* Stat cards */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+.stat-card {
+  background: var(--surf-raised);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1rem;
+  text-align: center;
+}
+.stat-card .stat-num {
+  font-size: 1.8rem;
+  font-family: Georgia, serif;
+  color: var(--ac);
+  line-height: 1;
+  margin-bottom: 0.25rem;
+}
+.stat-card .stat-label {
+  font-size: 0.75rem;
+  color: var(--txt-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* Section headings */
+.section-title {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 1.1rem;
+  color: var(--ac-light);
+  margin-bottom: 1rem;
+}
+
+/* Sub-tabs */
+.sub-tabs {
+  display: flex;
+  gap: 0.25rem;
+  margin-bottom: 1.25rem;
+  border-bottom: 1px solid var(--border);
+}
+.sub-tab-btn {
+  background: none;
+  border: none;
+  color: var(--txt-muted);
+  padding: 0.6rem 1rem;
+  cursor: pointer;
+  font-size: 0.85rem;
+  border-bottom: 2px solid transparent;
+  transition: color 0.15s, border-color 0.15s;
+}
+.sub-tab-btn:hover { color: var(--txt); }
+.sub-tab-btn.active { color: var(--ac); border-bottom-color: var(--ac); }
+
+/* Verse display */
+.verse-line {
+  line-height: 1.9;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 1.05rem;
+  margin-bottom: 0.4rem;
+  padding: 0.3rem 0.5rem;
+  border-radius: 4px;
+  position: relative;
+  transition: background 0.15s;
+}
+.verse-line:hover { background: var(--surf-raised); }
+.verse-num {
+  color: var(--ac);
+  font-weight: bold;
+  font-size: 0.8rem;
+  vertical-align: super;
+  margin-right: 0.3rem;
+  font-family: system-ui, sans-serif;
+}
+.verse-has-note .verse-num::after {
+  content: '';
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  background: var(--ac);
+  border-radius: 50%;
+  margin-left: 3px;
+  vertical-align: middle;
+}
+.verse-bookmark {
+  opacity: 0;
+  position: absolute;
+  right: 0.5rem;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: var(--ac);
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: opacity 0.15s;
+}
+.verse-line:hover .verse-bookmark { opacity: 1; }
+.verse-note-inline {
+  margin: 0.5rem 0 0.5rem 1.5rem;
+  display: none;
+}
+.verse-note-inline.open { display: block; }
+.verse-note-inline textarea {
+  width: 100%;
+  font-size: 0.85rem;
+  min-height: 60px;
+  margin-bottom: 0.5rem;
+}
+
+/* Quick capture FAB */
+.fab {
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: var(--ac);
+  color: var(--bg);
+  border: none;
+  cursor: pointer;
+  font-size: 1.5rem;
+  font-weight: bold;
+  z-index: 200;
+  transition: transform 0.15s, box-shadow 0.15s;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.fab:hover { transform: scale(1.08); }
+
+/* Overlay */
+.overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.7);
+  z-index: 300;
+  align-items: center;
+  justify-content: center;
+}
+.overlay.open { display: flex; }
+.overlay-panel {
+  background: var(--surf);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.5rem;
+  width: 90%;
+  max-width: 460px;
+  max-height: 85vh;
+  overflow-y: auto;
+}
+.overlay-panel h2 {
+  font-family: Georgia, serif;
+  color: var(--ac);
+  font-size: 1.1rem;
+  margin-bottom: 1rem;
+}
+
+/* Book grid */
+.book-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+.book-chip {
+  background: var(--surf-raised);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.4rem 0.3rem;
+  text-align: center;
+  font-size: 0.7rem;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  color: var(--txt-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.book-chip:hover { border-color: var(--ac); }
+.book-chip .chip-badge {
+  display: inline-block;
+  font-size: 0.6rem;
+  padding: 0.1rem 0.35rem;
+  border-radius: 3px;
+  margin-top: 0.2rem;
+}
+.book-chip[data-status="reading"] { border-color: var(--ac); color: var(--txt); }
+.book-chip[data-status="reading"] .chip-badge { background: var(--ac); color: var(--bg); }
+.book-chip[data-status="studied"] { border-color: var(--status-green); color: var(--txt); }
+.book-chip[data-status="studied"] .chip-badge { background: var(--status-green); color: var(--txt); }
+.book-chip[data-status="memorizing"] { border-color: var(--status-purple); color: var(--txt); }
+.book-chip[data-status="memorizing"] .chip-badge { background: var(--status-purple); color: var(--txt); }
+.book-chip[data-status="favorited"] { border-color: var(--ac); color: var(--ac); }
+
+/* Selectable mark chips — used in verse drill-down */
+.mark-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surf-raised);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.4rem 0.6rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+  color: var(--txt-muted);
+  transition: all 0.15s;
+  user-select: none;
+  min-width: 38px;
+  text-align: center;
+}
+.mark-chip:hover { border-color: var(--ac); color: var(--txt); }
+.mark-chip.marked {
+  background: var(--ac);
+  border-color: var(--ac);
+  color: var(--bg);
+  font-weight: 600;
+}
+.mark-chip-wide { min-width: 80px; }
+.drill-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-bottom: 1rem;
+  font-size: 0.85rem;
+  flex-wrap: wrap;
+}
+.drill-breadcrumb a {
+  color: var(--ac);
+  cursor: pointer;
+  text-decoration: none;
+}
+.drill-breadcrumb a:hover { text-decoration: underline; }
+.drill-breadcrumb span { color: var(--txt-muted); }
+.drill-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.mark-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+/* Calendar heatmap */
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  margin-bottom: 1.5rem;
+}
+.cal-label {
+  font-size: 0.65rem;
+  color: var(--txt-muted);
+  text-align: center;
+  padding: 0.2rem 0;
+}
+.cal-day {
+  aspect-ratio: 1;
+  border-radius: 3px;
+  background: var(--surf-raised);
+  border: 1px solid var(--border);
+}
+.cal-day.has-reading { background: var(--ac); border-color: var(--ac); }
+.cal-day.today { border-color: var(--ac-light); }
+.cal-day.empty { background: transparent; border-color: transparent; }
+
+/* Log entries */
+.log-entry {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--border);
+}
+.log-entry:last-child { border-bottom: none; }
+.log-entry:hover .log-del { opacity: 1 !important; }
+.log-del:hover { color: var(--badge-orange) !important; }
+.log-date { font-size: 0.8rem; color: var(--txt-muted); min-width: 80px; }
+.log-ref { color: var(--ac); font-family: Georgia, serif; }
+.log-note { font-size: 0.85rem; color: var(--txt-muted); flex: 1; }
+
+/* Prayer cards */
+.prayer-card {
+  background: var(--surf-raised);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 0.75rem;
+}
+.prayer-card.answered {
+  border-color: var(--ac);
+  background: linear-gradient(135deg, var(--surf-raised), rgba(139,105,20,0.08));
+}
+.prayer-cat {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--txt-muted);
+  margin-bottom: 0.3rem;
+}
+.prayer-title {
+  font-family: Georgia, serif;
+  color: var(--txt);
+  margin-bottom: 0.4rem;
+}
+.prayer-desc { font-size: 0.85rem; color: var(--txt-muted); line-height: 1.5; margin-bottom: 0.5rem; }
+.prayer-meta { display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; }
+.prayer-status {
+  font-size: 0.75rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.prayer-status[data-s="Active"] { color: var(--ac); border-color: var(--ac); }
+.prayer-status[data-s="Answered"] { color: var(--status-green); border-color: var(--status-green); }
+.prayer-status[data-s="Ongoing"] { color: var(--ac-light); border-color: var(--ac-light); }
+
+/* Reflect prompt cards */
+.prompt-card {
+  background: var(--surf-raised);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1.25rem;
+  margin-bottom: 1rem;
+}
+.prompt-badge {
+  display: inline-block;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0.15rem 0.5rem;
+  border-radius: 4px;
+  margin-bottom: 0.5rem;
+  border: 1px solid;
+}
+.badge-reflective { color: var(--ac-light); border-color: var(--ac-light); }
+.badge-conversational { color: var(--badge-green); border-color: var(--badge-green); }
+.badge-challenge { color: var(--badge-orange); border-color: var(--badge-orange); }
+.prompt-text {
+  font-family: Georgia, serif;
+  font-size: 1.05rem;
+  line-height: 1.7;
+  color: var(--txt);
+  margin-bottom: 0.75rem;
+}
+
+/* Search results */
+.search-results {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: var(--surf);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-top: 4px;
+  max-height: 400px;
+  overflow-y: auto;
+  z-index: 500;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+}
+.search-results.open { display: block; }
+.search-group-title {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--txt-muted);
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+.search-item {
+  padding: 0.6rem 0.75rem;
+  cursor: pointer;
+  transition: background 0.1s;
+  border-bottom: 1px solid var(--border);
+}
+.search-item:hover { background: var(--surf-raised); }
+.search-item:last-child { border-bottom: none; }
+.search-ref { color: var(--ac); font-size: 0.85rem; }
+.search-preview { color: var(--txt-muted); font-size: 0.8rem; margin-top: 0.15rem; }
+
+/* Welcome screen */
+.welcome-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--bg);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.welcome-card {
+  max-width: 500px;
+  padding: 2.5rem;
+  text-align: center;
+}
+.welcome-card h1 {
+  font-family: Georgia, serif;
+  color: var(--ac);
+  font-size: 2rem;
+  margin-bottom: 0.5rem;
+}
+.welcome-card p {
+  color: var(--txt-muted);
+  line-height: 1.7;
+  margin-bottom: 1rem;
+  font-size: 0.95rem;
+}
+.welcome-features {
+  text-align: left;
+  margin: 1.5rem 0;
+}
+.welcome-features div {
+  padding: 0.5rem 0;
+  color: var(--txt);
+  font-size: 0.9rem;
+}
+.welcome-features span { color: var(--ac); margin-right: 0.5rem; }
+
+/* Empty states */
+.empty-state {
+  text-align: center;
+  padding: 3rem 1rem;
+  color: var(--txt-muted);
+}
+.empty-state .empty-icon { font-size: 2rem; margin-bottom: 0.75rem; }
+.empty-state p { line-height: 1.6; max-width: 360px; margin: 0 auto; }
+
+/* Loading */
+.loading-msg {
+  text-align: center;
+  padding: 3rem;
+  color: var(--txt-muted);
+}
+
+/* Mood icons */
+.mood-chip {
+  display: inline-block;
+  font-size: 0.75rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  color: var(--txt-muted);
+}
+
+/* Plans */
+.plan-card {
+  background: var(--surf-raised);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 0.75rem;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+.plan-card:hover { border-color: var(--ac); }
+.plan-type-badge {
+  display: inline-block;
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0.15rem 0.45rem;
+  border-radius: 4px;
+  border: 1px solid;
+}
+.badge-reading { color: var(--ac); border-color: var(--ac); }
+.badge-study { color: var(--badge-green); border-color: var(--badge-green); }
+.badge-challenge { color: var(--status-purple); border-color: var(--status-purple); }
+.progress-bar {
+  height: 6px;
+  background: var(--border);
+  border-radius: 3px;
+  overflow: hidden;
+  margin: 0.5rem 0;
+}
+.progress-fill {
+  height: 100%;
+  background: var(--ac);
+  border-radius: 3px;
+  transition: width 0.3s;
+}
+.cal-strip {
+  display: flex;
+  gap: 3px;
+  overflow-x: auto;
+  padding: 0.5rem 0;
+  margin-bottom: 1rem;
+}
+.cal-strip::-webkit-scrollbar { height: 4px; }
+.cal-strip::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+.cal-strip-day {
+  min-width: 36px;
+  text-align: center;
+  padding: 0.3rem 0.2rem;
+  border-radius: 6px;
+  font-size: 0.7rem;
+  color: var(--txt-muted);
+  border: 1px solid transparent;
+  flex-shrink: 0;
+}
+.cal-strip-day.today { border-color: var(--ac); color: var(--txt); }
+.cal-strip-day.done { background: var(--ac); color: var(--bg); }
+.cal-strip-day.missed { background: var(--surf-raised); }
+.plan-today-card {
+  background: var(--surf-raised);
+  border: 1px solid var(--ac);
+  border-radius: 8px;
+  padding: 1.25rem;
+  margin-bottom: 1.25rem;
+}
+.notify-banner {
+  display: none;
+  background: var(--surf-raised);
+  border-bottom: 1px solid var(--ac);
+  padding: 0.5rem 1rem;
+  font-size: 0.85rem;
+  color: var(--txt);
+  align-items: center;
+  gap: 0.75rem;
+  flex-shrink: 0;
+}
+.notify-banner.show { display: flex; }
+.notify-banner a { color: var(--ac); cursor: pointer; text-decoration: none; font-weight: 600; }
+.notify-banner .dismiss { margin-left: auto; background: none; border: none; color: var(--txt-muted); cursor: pointer; font-size: 1rem; }
+
+/* Settings panel */
+#settingsOverlay .overlay-panel { max-width: 400px; }
+
+/* Responsive — bottom tab bar on mobile */
+@media (max-width: 640px) {
+  body { flex-direction: column; }
+  .tabs-nav {
+    order: 10;
+    border-bottom: none;
+    border-top: 1px solid var(--border);
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 99;
+    background: var(--surf);
+  }
+  .tab-btn { border-bottom: none; border-top: 3px solid transparent; padding: 0.6rem 0.3rem; font-size: 0.75rem; }
+  .tab-btn.active { border-top-color: var(--ac); border-bottom-color: transparent; }
+  .tabs-content { padding-bottom: 56px; }
+  .panel { padding: 1rem; }
+  .stats-grid { grid-template-columns: repeat(2, 1fr); }
+  .fab { bottom: 5rem; }
+  .header-search { max-width: 180px; }
+}
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<header class="app-header">
+  <h1 id="appTitle">Mark My Word</h1>
+  <div class="header-search" id="searchContainer">
+    <span class="search-icon">&#x1F50D;</span>
+    <div style="position:relative;flex:1">
+      <input type="text" id="globalSearch" placeholder="Search notes, journal..." autocomplete="off">
+      <div class="search-results" id="searchResults"></div>
+    </div>
+  </div>
+  <div class="header-right">
+    <span id="aiDot" title="AI: checking..." style="width:8px;height:8px;border-radius:50%;background:var(--txt-muted);display:inline-block;cursor:help;transition:background 0.3s"></span>
+    <button class="icon-btn" id="themeBtn" title="Toggle light/dark mode">&#9788;</button>
+    <button class="icon-btn" id="settingsBtn" title="Settings">&#9881;</button>
+  </div>
+</header>
+
+<!-- Plan notification banner -->
+<div class="notify-banner" id="planBanner">
+  <span id="bannerText"></span>
+  <a id="bannerOpen">Open</a>
+  <button class="dismiss" id="bannerDismiss">&times;</button>
+</div>
+
+<!-- Tab Navigation -->
+<nav class="tabs-nav" id="tabsNav">
+  <button class="tab-btn active" data-tab="read">Read</button>
+  <button class="tab-btn" data-tab="track">Track</button>
+  <button class="tab-btn" data-tab="plans">Plans</button>
+  <button class="tab-btn" data-tab="notes">Notes</button>
+  <button class="tab-btn" data-tab="pray">Pray</button>
+  <button class="tab-btn" data-tab="reflect">Reflect</button>
+</nav>
+
+<!-- Tab Panels -->
+<div class="tabs-content">
+
+  <!-- ═══ READ TAB ═══ -->
+  <div class="panel active" id="tab-read"></div>
+
+  <!-- ═══ TRACK TAB ═══ -->
+  <div class="panel" id="tab-track"></div>
+
+  <!-- ═══ PLANS TAB ═══ -->
+  <div class="panel" id="tab-plans"></div>
+
+  <!-- ═══ NOTES TAB ═══ -->
+  <div class="panel" id="tab-notes"></div>
+
+  <!-- ═══ PRAY TAB ═══ -->
+  <div class="panel" id="tab-pray"></div>
+
+  <!-- ═══ REFLECT TAB ═══ -->
+  <div class="panel" id="tab-reflect"></div>
+
+</div>
+
+<!-- Quick Capture FAB -->
+<button class="fab" id="fabBtn" title="Quick capture">+</button>
+
+<!-- Quick Capture Overlay -->
+<div class="overlay" id="captureOverlay">
+  <div class="overlay-panel">
+    <h2>Quick Capture</h2>
+    <textarea id="captureText" placeholder="What's on your mind..." rows="3"></textarea>
+    <div style="display:flex;gap:0.5rem;align-items:center;margin-top:0.75rem">
+      <input type="text" id="captureRef" placeholder="Link to passage (optional)" style="flex:1">
+      <button class="btn" id="captureSave">Save</button>
+      <button class="btn btn-muted" id="captureClose">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Settings Overlay -->
+<div class="overlay" id="settingsOverlay">
+  <div class="overlay-panel">
+    <h2>Settings</h2>
+    <div style="margin-bottom:1rem">
+      <label style="display:flex;align-items:center;gap:0.75rem;cursor:pointer">
+        <input type="checkbox" id="toggleTheme">
+        <span>Light mode</span>
+      </label>
+    </div>
+    <div style="margin-bottom:1rem">
+      <label style="display:flex;align-items:center;gap:0.75rem;cursor:pointer">
+        <input type="checkbox" id="toggleAI" checked>
+        <span>Show AI reflection prompts</span>
+      </label>
+    </div>
+    <hr class="gold-rule">
+    <div style="font-size:0.85rem;color:var(--txt-muted);margin-bottom:0.5rem">AI Connection</div>
+    <div style="display:flex;flex-direction:column;gap:0.5rem;margin-bottom:1rem">
+      <select id="aiPreset" style="font-size:0.85rem">
+        <option value="local">Local Foundry (default)</option>
+        <option value="openai">OpenAI (ChatGPT)</option>
+        <option value="anthropic">Anthropic (Claude)</option>
+        <option value="custom">Custom endpoint</option>
+      </select>
+      <input type="text" id="aiEndpointInput" placeholder="API endpoint URL" style="font-size:0.85rem">
+      <input type="text" id="aiModelInput" placeholder="Model name" style="font-size:0.85rem">
+      <input type="password" id="aiKeyInput" placeholder="API key (stored locally)" style="font-size:0.85rem">
+      <button class="btn btn-sm btn-outline" id="aiSaveBtn">Save AI Settings</button>
+    </div>
+    <hr class="gold-rule">
+    <div style="display:flex;flex-direction:column;gap:0.5rem">
+      <button class="btn btn-outline" id="exportBtn">Export all data as JSON</button>
+      <label class="btn btn-outline" style="text-align:center;cursor:pointer">
+        Import from backup
+        <input type="file" id="importFile" accept=".json" style="display:none">
+      </label>
+      <button class="btn btn-muted" id="clearBtn">Clear all data</button>
+    </div>
+    <hr class="gold-rule">
+    <button class="btn btn-muted" id="settingsClose" style="width:100%">Close</button>
+  </div>
+</div>
+
+<!-- Welcome Screen -->
+<div class="welcome-overlay" id="welcomeScreen" style="display:none">
+  <div class="welcome-card">
+    <h1 id="welcomeTitle">Mark My Word</h1>
+    <p>A place for your daily time in the Word &mdash; reading, reflecting, praying, and growing.</p>
+    <hr class="gold-rule">
+    <div class="welcome-features">
+      <div><span>&#9702;</span> <strong>Read</strong> &mdash; All 66 books of the KJV, with verse-level notes</div>
+      <div><span>&#9702;</span> <strong>Track</strong> &mdash; Your reading streaks, progress, and history</div>
+      <div><span>&#9702;</span> <strong>Notes</strong> &mdash; Verse notes, journal entries, and random thoughts</div>
+      <div><span>&#9702;</span> <strong>Pray</strong> &mdash; Prayer requests, praises, and answered prayers</div>
+      <div><span>&#9702;</span> <strong>Reflect</strong> &mdash; AI-powered prompts based on your journey</div>
+    </div>
+    <button class="btn" id="welcomeStart" style="padding:0.75rem 2.5rem;font-size:1rem">Begin</button>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════
+// CORE UTILITIES
+// ═══════════════════════════════════════════════
+
+// localStorage helpers (must be first — used by applyConfig)
+function lsGet(key, fallback) {
+  try { const v = localStorage.getItem('bt_' + key); return v ? JSON.parse(v) : fallback; }
+  catch(e) { return fallback; }
+}
+function lsSet(key, val) {
+  try { localStorage.setItem('bt_' + key, JSON.stringify(val)); } catch(e) {}
+}
+
+// Apply CONFIG colors to CSS vars + theme support
+function applyTheme(light) {
+  const r = document.documentElement.style;
+  if (light) {
+    r.setProperty('--ac', CONFIG.LIGHT_ACCENT);
+    r.setProperty('--ac-light', CONFIG.LIGHT_ACCENT2);
+    r.setProperty('--bg', CONFIG.LIGHT_BG);
+    r.setProperty('--surf', CONFIG.LIGHT_SURFACE);
+    r.setProperty('--surf-raised', CONFIG.LIGHT_RAISED);
+    r.setProperty('--border', CONFIG.LIGHT_BORDER);
+    r.setProperty('--txt', CONFIG.LIGHT_TEXT);
+    r.setProperty('--txt-muted', CONFIG.LIGHT_MUTED);
+  } else {
+    r.setProperty('--ac', CONFIG.ACCENT_COLOR);
+    r.setProperty('--ac-light', CONFIG.ACCENT_LIGHT);
+    r.setProperty('--bg', CONFIG.BG_COLOR);
+    r.setProperty('--surf', CONFIG.SURFACE_COLOR);
+    r.setProperty('--surf-raised', CONFIG.SURFACE_RAISED);
+    r.setProperty('--border', CONFIG.BORDER_COLOR);
+    r.setProperty('--txt', CONFIG.TEXT_PRIMARY);
+    r.setProperty('--txt-muted', CONFIG.TEXT_MUTED);
+  }
+  r.setProperty('--status-green', CONFIG.STATUS_GREEN);
+  r.setProperty('--status-purple', CONFIG.STATUS_PURPLE);
+  r.setProperty('--badge-green', CONFIG.BADGE_GREEN);
+  r.setProperty('--badge-orange', CONFIG.BADGE_ORANGE);
+}
+(function applyConfig() {
+  const savedTheme = lsGet('theme', 'dark');
+  applyTheme(savedTheme === 'light');
+  document.getElementById('appTitle').textContent = CONFIG.APP_NAME;
+  document.getElementById('welcomeTitle').textContent = CONFIG.APP_NAME;
+  document.title = CONFIG.APP_NAME;
+})();
+
+// Display name for book filename
+// "1Samuel" -> "1 Samuel", "SongofSolomon" -> "Song of Solomon"
+function displayNameFull(fn) {
+  if (fn === 'SongofSolomon') return 'Song of Solomon';
+  return fn.replace(/^(\d)/, '$1 ').replace(/([a-z])([A-Z])/g, '$1 $2');
+}
+
+// Date formatting
+function fmtDate(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const target = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const diff = (today - target) / 86400000;
+  if (diff === 0) return 'Today';
+  if (diff === 1) return 'Yesterday';
+  if (diff < 7) return d.toLocaleDateString('en-US', { weekday: 'long' });
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+function dateKey(iso) {
+  const d = new Date(iso);
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+function todayKey() { return dateKey(new Date().toISOString()); }
+
+// Book JSON cache
+const bookCache = {};
+async function fetchBook(filename) {
+  if (bookCache[filename]) return bookCache[filename];
+  const resp = await fetch(`./Bible-kjv/${filename}.json`);
+  if (!resp.ok) throw new Error(`Could not load ${filename}`);
+  const data = await resp.json();
+  bookCache[filename] = data;
+  return data;
+}
+
+// Debounce
+function debounce(fn, ms) {
+  let t; return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
+}
+
+// Generate unique id
+function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+
+// ═══════════════════════════════════════════════
+// TAB SYSTEM — only render active tab
+// ═══════════════════════════════════════════════
+let activeTab = 'read';
+const tabRendered = {};
+
+function switchTab(name) {
+  if (activeTab === name) return;
+  const oldPanel = document.getElementById('tab-' + activeTab);
+  if (oldPanel) { oldPanel.classList.remove('active'); }
+  activeTab = name;
+  document.querySelectorAll('.tab-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.tab === name);
+  });
+  const panel = document.getElementById('tab-' + name);
+  renderTab(name);
+  // slight delay for fade effect
+  requestAnimationFrame(() => { panel.classList.add('active'); });
+}
+
+function renderTab(name) {
+  const renderers = { read: renderRead, track: renderTrack, plans: renderPlans, notes: renderNotes, pray: renderPray, reflect: renderReflect };
+  if (renderers[name]) renderers[name]();
+}
+
+document.querySelectorAll('.tab-btn').forEach(b => {
+  b.addEventListener('click', () => switchTab(b.dataset.tab));
+});
+
+// ═══════════════════════════════════════════════
+// READ TAB
+// ═══════════════════════════════════════════════
+let currentBook = 'John';
+let currentChapter = 1;
+let currentVerseStart = null; // null means full chapter
+let currentVerseEnd = null;
+let readInitialized = false;
+
+function renderRead() {
+  const el = document.getElementById('tab-read');
+  if (!readInitialized) {
+    readInitialized = true;
+    el.innerHTML = buildReadHTML();
+    setupReadEvents();
+    loadChapterList(currentBook).then(() => loadChapter());
+  }
+}
+
+function buildReadHTML() {
+  let bookOpts = '<optgroup label="Old Testament">';
+  CONFIG.BOOKS.forEach((b, i) => {
+    if (i === CONFIG.OT_COUNT) bookOpts += '</optgroup><optgroup label="New Testament">';
+    const sel = b === currentBook ? ' selected' : '';
+    bookOpts += `<option value="${b}"${sel}>${displayNameFull(b)}</option>`;
+  });
+  bookOpts += '</optgroup>';
+  return `
+    <div style="display:flex;gap:0.75rem;align-items:flex-end;flex-wrap:wrap;margin-bottom:0.75rem">
+      <div><label style="font-size:0.8rem;color:var(--txt-muted);display:block;margin-bottom:0.25rem">Book</label>
+        <select id="readBook" style="min-width:160px">${bookOpts}</select></div>
+      <div><label style="font-size:0.8rem;color:var(--txt-muted);display:block;margin-bottom:0.25rem">Chapter</label>
+        <select id="readChapter" style="min-width:80px"></select></div>
+      <div id="verseSelectors" style="display:flex;gap:0.5rem;align-items:flex-end">
+        <div><label style="font-size:0.8rem;color:var(--txt-muted);display:block;margin-bottom:0.25rem">From</label>
+          <select id="readVerseStart" style="min-width:60px"><option value="">All</option></select></div>
+        <div><label style="font-size:0.8rem;color:var(--txt-muted);display:block;margin-bottom:0.25rem">To</label>
+          <select id="readVerseEnd" style="min-width:60px"><option value="">End</option></select></div>
+      </div>
+      <button class="btn" id="readLoad">Load</button>
+      <button class="btn btn-outline" id="readMark">Mark Read</button>
+    </div>
+    <hr class="gold-rule">
+    <div id="readContent"><div class="loading-msg">Select a book and chapter...</div></div>`;
+}
+
+function setupReadEvents() {
+  document.getElementById('readBook').addEventListener('change', async function() {
+    currentBook = this.value;
+    await loadChapterList(currentBook);
+    currentChapter = 1;
+    document.getElementById('readChapter').value = '1';
+    resetVerseSelectors();
+  });
+  document.getElementById('readChapter').addEventListener('change', async function() {
+    currentChapter = parseInt(this.value);
+    await populateVerseSelectors();
+  });
+  document.getElementById('readVerseStart').addEventListener('change', function() {
+    currentVerseStart = this.value ? parseInt(this.value) : null;
+    updateVerseEndOptions();
+  });
+  document.getElementById('readVerseEnd').addEventListener('change', function() {
+    currentVerseEnd = this.value ? parseInt(this.value) : null;
+  });
+  document.getElementById('readLoad').addEventListener('click', loadChapter);
+  document.getElementById('readMark').addEventListener('click', markChapterRead);
+}
+
+function resetVerseSelectors() {
+  currentVerseStart = null;
+  currentVerseEnd = null;
+  document.getElementById('readVerseStart').innerHTML = '<option value="">All</option>';
+  document.getElementById('readVerseEnd').innerHTML = '<option value="">End</option>';
+}
+
+async function populateVerseSelectors() {
+  const startSel = document.getElementById('readVerseStart');
+  const endSel = document.getElementById('readVerseEnd');
+  currentVerseStart = null;
+  currentVerseEnd = null;
+  try {
+    const data = await fetchBook(currentBook);
+    const chapter = data.chapters.find(c => parseInt(c.chapter) === currentChapter);
+    if (!chapter) return;
+    const count = chapter.verses.length;
+    startSel.innerHTML = '<option value="">All</option>';
+    endSel.innerHTML = '<option value="">End</option>';
+    for (let i = 1; i <= count; i++) {
+      startSel.innerHTML += `<option value="${i}">${i}</option>`;
+      endSel.innerHTML += `<option value="${i}">${i}</option>`;
+    }
+  } catch(e) {}
+}
+
+function updateVerseEndOptions() {
+  const endSel = document.getElementById('readVerseEnd');
+  const startVal = currentVerseStart;
+  if (!startVal) {
+    // Reset end too
+    currentVerseEnd = null;
+    endSel.value = '';
+    return;
+  }
+  // Disable end options before start
+  Array.from(endSel.options).forEach(opt => {
+    if (opt.value && parseInt(opt.value) < startVal) {
+      opt.disabled = true;
+    } else {
+      opt.disabled = false;
+    }
+  });
+  if (currentVerseEnd && currentVerseEnd < startVal) {
+    endSel.value = '';
+    currentVerseEnd = null;
+  }
+}
+
+async function loadChapterList(bookName) {
+  const sel = document.getElementById('readChapter');
+  sel.innerHTML = '<option>...</option>';
+  try {
+    const data = await fetchBook(bookName);
+    sel.innerHTML = '';
+    data.chapters.forEach((ch, i) => {
+      const num = parseInt(ch.chapter);
+      sel.innerHTML += `<option value="${num}">${num}</option>`;
+    });
+    sel.value = String(currentChapter);
+  } catch(e) {
+    sel.innerHTML = '<option>1</option>';
+  }
+}
+
+async function loadChapter() {
+  const el = document.getElementById('readContent');
+  el.innerHTML = '<div class="loading-msg">Loading...</div>';
+  const bookName = document.getElementById('readBook').value;
+  const chapNum = parseInt(document.getElementById('readChapter').value);
+  currentBook = bookName;
+  currentChapter = chapNum;
+  // Read verse range from selectors
+  const vsVal = document.getElementById('readVerseStart').value;
+  const veVal = document.getElementById('readVerseEnd').value;
+  currentVerseStart = vsVal ? parseInt(vsVal) : null;
+  currentVerseEnd = veVal ? parseInt(veVal) : null;
+  try {
+    const data = await fetchBook(bookName);
+    const chapter = data.chapters.find(c => parseInt(c.chapter) === chapNum);
+    if (!chapter) { el.innerHTML = '<div class="empty-state"><p>Chapter not found.</p></div>'; return; }
+
+    // Populate verse selectors if not yet done
+    const startSel = document.getElementById('readVerseStart');
+    if (startSel.options.length <= 1) {
+      await populateVerseSelectors();
+    }
+
+    // Filter verses by range
+    let verses = chapter.verses;
+    if (currentVerseStart) {
+      verses = verses.filter(v => parseInt(v.verse) >= currentVerseStart);
+    }
+    if (currentVerseEnd) {
+      verses = verses.filter(v => parseInt(v.verse) <= currentVerseEnd);
+    }
+
+    const verseNotes = lsGet('verse_notes', {});
+    // Build heading with verse range if selected
+    let heading = `${displayNameFull(bookName)} ${chapNum}`;
+    if (currentVerseStart || currentVerseEnd) {
+      heading += `:${currentVerseStart || 1}`;
+      if (currentVerseEnd && currentVerseEnd !== currentVerseStart) heading += `-${currentVerseEnd}`;
+    }
+    let html = `<h2 style="font-family:Georgia,serif;color:var(--ac-light);margin-bottom:1rem">${heading}</h2>`;
+    verses.forEach(v => {
+      const noteKey = `${bookName}_${chapNum}_${v.verse}`;
+      const hasNote = verseNotes[noteKey] && verseNotes[noteKey].trim();
+      html += `
+        <div class="verse-line${hasNote ? ' verse-has-note' : ''}" data-v="${v.verse}">
+          <span class="verse-num">${v.verse}</span>${v.text}
+          <button class="verse-bookmark" title="Add note" data-verse="${v.verse}">&#9998;</button>
+          <div class="verse-note-inline" id="vnote-${v.verse}">
+            <textarea placeholder="Note for ${displayNameFull(bookName)} ${chapNum}:${v.verse}...">${hasNote ? verseNotes[noteKey] : ''}</textarea>
+            <button class="btn btn-sm" data-save-note="${v.verse}">Save</button>
+          </div>
+        </div>`;
+    });
+    el.innerHTML = html;
+
+    // Verse note events
+    el.querySelectorAll('.verse-bookmark').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const vn = document.getElementById('vnote-' + btn.dataset.verse);
+        vn.classList.toggle('open');
+        if (vn.classList.contains('open')) vn.querySelector('textarea').focus();
+      });
+    });
+    el.querySelectorAll('[data-save-note]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const verse = btn.dataset.saveNote;
+        const noteKey = `${currentBook}_${currentChapter}_${verse}`;
+        const text = btn.parentElement.querySelector('textarea').value;
+        const notes = lsGet('verse_notes', {});
+        if (text.trim()) {
+          notes[noteKey] = text;
+          notes[noteKey + '_date'] = new Date().toISOString();
+        } else {
+          delete notes[noteKey];
+          delete notes[noteKey + '_date'];
+        }
+        lsSet('verse_notes', notes);
+        // Update dot indicator
+        const line = btn.closest('.verse-line');
+        line.classList.toggle('verse-has-note', !!text.trim());
+        btn.parentElement.classList.remove('open');
+      });
+    });
+  } catch(e) {
+    const isFile = location.protocol === 'file:';
+    el.innerHTML = `<div class="empty-state"><div class="empty-icon">&#128214;</div><p>Could not load ${displayNameFull(bookName)}.${isFile ? ' You\'re opening this as a local file — most browsers block fetch() on file:// URLs. Start a local server instead:<br><br><code style="color:var(--ac);font-size:0.85rem">npx serve .</code> or <code style="color:var(--ac);font-size:0.85rem">python -m http.server</code><br><br>Then open <code style="color:var(--ac)">http://localhost:3000</code> (or :8000).' : ' Make sure the Bible-kjv folder is in the same directory as this file.'}</p></div>`;
+  }
+}
+
+function markChapterRead() {
+  const log = lsGet('reading_log', []);
+  const entry = { book: currentBook, chapter: currentChapter, date: new Date().toISOString(), note: '' };
+  if (currentVerseStart) entry.verseStart = currentVerseStart;
+  if (currentVerseEnd) entry.verseEnd = currentVerseEnd;
+  log.push(entry);
+  lsSet('reading_log', log);
+  // Visual feedback
+  const btn = document.getElementById('readMark');
+  btn.textContent = 'Marked!';
+  btn.style.background = CONFIG.STATUS_GREEN;
+  setTimeout(() => { btn.textContent = 'Mark Read'; btn.style.background = ''; }, 1200);
+}
+
+// ═══════════════════════════════════════════════
+// TRACK TAB
+// ═══════════════════════════════════════════════
+function renderTrack() {
+  const el = document.getElementById('tab-track');
+  const log = lsGet('reading_log', []);
+  // Compute stats
+  const readDates = [...new Set(log.map(e => dateKey(e.date)))].sort();
+  const tk = todayKey();
+  let streak = 0, longestStreak = 0, tempStreak = 0;
+  // Calculate streaks
+  if (readDates.length > 0) {
+    // Build list of all dates as Date objects
+    const allDates = readDates.map(d => new Date(d + 'T00:00:00'));
+    // Current streak: count backwards from today
+    const todayD = new Date(tk + 'T00:00:00');
+    let checkDate = new Date(todayD);
+    // If today hasn't been read, start from yesterday
+    if (!readDates.includes(tk)) {
+      checkDate.setDate(checkDate.getDate() - 1);
+    }
+    while (readDates.includes(dateKey(checkDate.toISOString()))) {
+      streak++;
+      checkDate.setDate(checkDate.getDate() - 1);
+    }
+    // Longest streak
+    tempStreak = 1;
+    longestStreak = 1;
+    for (let i = 1; i < allDates.length; i++) {
+      const diff = (allDates[i] - allDates[i-1]) / 86400000;
+      if (diff === 1) { tempStreak++; longestStreak = Math.max(longestStreak, tempStreak); }
+      else { tempStreak = 1; }
+    }
+    if (readDates.length === 0) longestStreak = 0;
+  }
+  longestStreak = Math.max(longestStreak, streak);
+
+  // Days this month
+  const now = new Date();
+  const monthKey = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  const daysThisMonth = readDates.filter(d => d.startsWith(monthKey)).length;
+
+  // Calendar heatmap for current month
+  const year = now.getFullYear(), month = now.getMonth();
+  const firstDay = new Date(year, month, 1).getDay(); // 0=Sun
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const todayDate = now.getDate();
+  const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  let calHTML = `<div style="font-size:0.85rem;color:var(--txt-muted);margin-bottom:0.5rem">${monthNames[month]} ${year}</div>`;
+  calHTML += '<div class="cal-grid">';
+  ['S','M','T','W','T','F','S'].forEach(d => { calHTML += `<div class="cal-label">${d}</div>`; });
+  for (let i = 0; i < firstDay; i++) calHTML += '<div class="cal-day empty"></div>';
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dk = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const hasR = readDates.includes(dk);
+    const isToday = d === todayDate;
+    calHTML += `<div class="cal-day${hasR ? ' has-reading' : ''}${isToday ? ' today' : ''}"></div>`;
+  }
+  calHTML += '</div>';
+
+  // Reading log (last 50) — store original index for deletion
+  let logHTML = '';
+  const logWithIndex = log.map((e, i) => ({ ...e, _idx: i })).reverse().slice(0, 50);
+  if (logWithIndex.length === 0) {
+    logHTML = '<div class="empty-state"><div class="empty-icon">&#128218;</div><p>No chapters read yet. Start reading and mark chapters to build your history.</p></div>';
+  } else {
+    logWithIndex.forEach(e => {
+      let ref = `${displayNameFull(e.book)} ${e.chapter}`;
+      if (e.verseStart) { ref += `:${e.verseStart}`; if (e.verseEnd && e.verseEnd !== e.verseStart) ref += `-${e.verseEnd}`; }
+      logHTML += `<div class="log-entry">
+        <span class="log-date">${fmtDate(e.date)}</span>
+        <span class="log-ref">${ref}</span>
+        ${e.note ? `<span class="log-note">${e.note}</span>` : ''}
+        <button class="log-del" data-idx="${e._idx}" title="Remove" style="background:none;border:none;color:var(--txt-muted);cursor:pointer;font-size:0.75rem;padding:0.2rem 0.4rem;margin-left:auto;opacity:0.5;transition:opacity 0.15s">&times;</button>
+      </div>`;
+    });
+  }
+
+  el.innerHTML = `
+    <div class="stats-grid">
+      <div class="stat-card"><div class="stat-num">${streak}</div><div class="stat-label">Streak</div></div>
+      <div class="stat-card"><div class="stat-num">${longestStreak}</div><div class="stat-label">Longest</div></div>
+      <div class="stat-card"><div class="stat-num">${log.length}</div><div class="stat-label">Chapters</div></div>
+      <div class="stat-card"><div class="stat-num">${daysThisMonth}</div><div class="stat-label">This Month</div></div>
+    </div>
+    ${calHTML}
+    <hr class="gold-rule">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
+      <div class="section-title" style="margin-bottom:0">Progress</div>
+      <div style="display:flex;background:var(--surf-raised);border:1px solid var(--border);border-radius:6px;overflow:hidden">
+        <button class="track-view-btn active" data-view="book" style="padding:0.35rem 0.75rem;font-size:0.75rem;border:none;cursor:pointer;transition:all 0.15s">Book</button>
+        <button class="track-view-btn" data-view="verse" style="padding:0.35rem 0.75rem;font-size:0.75rem;border:none;cursor:pointer;transition:all 0.15s">Verse</button>
+      </div>
+    </div>
+    <div id="trackBookView"></div>
+    <div id="trackVerseView" style="display:none"></div>
+    <hr class="gold-rule">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
+      <div class="section-title" style="margin-bottom:0">Reading Log</div>
+      <button class="btn btn-sm btn-outline" id="manualLogBtn">Log Manually</button>
+    </div>
+    <div id="trackLog">${logHTML}</div>
+    <div id="manualLogForm" style="display:none;margin-bottom:1rem">
+      <div class="card" style="display:flex;flex-direction:column;gap:0.5rem">
+        <select id="mlBook">${CONFIG.BOOKS.map(b => `<option value="${b}">${displayNameFull(b)}</option>`).join('')}</select>
+        <input type="number" id="mlChapter" placeholder="Chapter" min="1" value="1">
+        <input type="text" id="mlNote" placeholder="Note (optional)">
+        <button class="btn" id="mlSave">Log Session</button>
+      </div>
+    </div>`;
+
+  // Render Book view (status grid) + toggle logic
+  renderBookView();
+
+  el.querySelectorAll('.track-view-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      el.querySelectorAll('.track-view-btn').forEach(b => {
+        b.classList.remove('active');
+        b.style.background = 'transparent';
+        b.style.color = 'var(--txt-muted)';
+      });
+      btn.classList.add('active');
+      btn.style.background = 'var(--ac)';
+      btn.style.color = 'var(--bg)';
+      const isVerse = btn.dataset.view === 'verse';
+      document.getElementById('trackBookView').style.display = isVerse ? 'none' : '';
+      document.getElementById('trackVerseView').style.display = isVerse ? '' : 'none';
+      if (isVerse) { drillLevel = 'books'; drillBook = null; drillChapter = null; renderDrill(); }
+    });
+    if (btn.classList.contains('active')) { btn.style.background = 'var(--ac)'; btn.style.color = 'var(--bg)'; }
+  });
+
+  // Manual log
+  document.getElementById('manualLogBtn').addEventListener('click', () => {
+    document.getElementById('manualLogForm').style.display = document.getElementById('manualLogForm').style.display === 'none' ? 'block' : 'none';
+  });
+  document.getElementById('mlSave').addEventListener('click', () => {
+    const book = document.getElementById('mlBook').value;
+    const ch = parseInt(document.getElementById('mlChapter').value) || 1;
+    const note = document.getElementById('mlNote').value;
+    const log = lsGet('reading_log', []);
+    log.push({ book, chapter: ch, date: new Date().toISOString(), note });
+    lsSet('reading_log', log);
+    renderTrack();
+  });
+
+  // Reading log delete buttons
+  el.querySelectorAll('.log-del').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const idx = parseInt(btn.dataset.idx);
+      const log = lsGet('reading_log', []);
+      log.splice(idx, 1);
+      lsSet('reading_log', log);
+      renderTrack();
+    });
+  });
+}
+
+// ═══════════════════════════════════════════════
+// BOOK VIEW — Status grid with mass-select
+// ═══════════════════════════════════════════════
+const STATUSES = ['unread', 'reading', 'studied', 'memorizing', 'favorited'];
+const STATUS_LABELS = { unread: 'Unread', reading: 'Read', studied: 'Studying', memorizing: 'Memorized', favorited: 'Favorited' };
+
+function renderBookView() {
+  const el = document.getElementById('trackBookView');
+  if (!el) return;
+  const bookStatus = lsGet('book_status', {});
+
+  // Build book grids
+  let otGrid = '', ntGrid = '';
+  CONFIG.BOOKS.forEach((b, i) => {
+    const status = bookStatus[b] || 'unread';
+    let badge = '';
+    if (status === 'reading') badge = '<div class="chip-badge">Read</div>';
+    else if (status === 'studied') badge = '<div class="chip-badge">Studying</div>';
+    else if (status === 'memorizing') badge = '<div class="chip-badge">Memorized</div>';
+    else if (status === 'favorited') badge = '&#x2764;';
+    const chip = `<div class="book-chip" data-status="${status}" data-book="${b}" title="${displayNameFull(b)} — click to cycle status">${displayNameFull(b)}${badge ? '<br>' + badge : ''}</div>`;
+    if (i < CONFIG.OT_COUNT) otGrid += chip; else ntGrid += chip;
+  });
+
+  el.innerHTML = `
+    <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;margin-bottom:1rem;padding:0.75rem;background:var(--surf-raised);border:1px solid var(--border);border-radius:8px">
+      <span style="font-size:0.8rem;color:var(--txt-muted)">Bulk update:</span>
+      <select id="massScope" style="font-size:0.8rem">
+        <option value="all">All Books</option>
+        <option value="ot">Old Testament</option>
+        <option value="nt">New Testament</option>
+      </select>
+      <select id="massStatus" style="font-size:0.8rem">
+        ${STATUSES.map(s => `<option value="${s}">${STATUS_LABELS[s]}</option>`).join('')}
+      </select>
+      <button class="btn btn-sm" id="massApply">Apply</button>
+    </div>
+    <div style="font-size:0.8rem;color:var(--txt-muted);margin-bottom:0.5rem">Old Testament <span style="opacity:0.6">(click a book to cycle its status)</span></div>
+    <div class="book-grid">${otGrid}</div>
+    <div style="font-size:0.8rem;color:var(--txt-muted);margin-bottom:0.5rem;margin-top:1rem">New Testament</div>
+    <div class="book-grid">${ntGrid}</div>`;
+
+  // Individual book click — cycle status
+  el.querySelectorAll('.book-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      const b = chip.dataset.book;
+      const bs = lsGet('book_status', {});
+      const current = bs[b] || 'unread';
+      const next = STATUSES[(STATUSES.indexOf(current) + 1) % STATUSES.length];
+      bs[b] = next;
+      lsSet('book_status', bs);
+      renderBookView();
+    });
+  });
+
+  // Mass apply
+  document.getElementById('massApply').addEventListener('click', () => {
+    const scope = document.getElementById('massScope').value;
+    const status = document.getElementById('massStatus').value;
+    const bs = lsGet('book_status', {});
+    let books;
+    if (scope === 'ot') books = CONFIG.BOOKS.slice(0, CONFIG.OT_COUNT);
+    else if (scope === 'nt') books = CONFIG.BOOKS.slice(CONFIG.OT_COUNT);
+    else books = [...CONFIG.BOOKS];
+    books.forEach(b => { bs[b] = status; });
+    lsSet('book_status', bs);
+    renderBookView();
+  });
+}
+
+// ═══════════════════════════════════════════════
+// DRILL-DOWN PROGRESS — Books → Chapters → Verses
+// ═══════════════════════════════════════════════
+// Data: bt_read_marks = { books: [], chapters: ["Book_Ch"], verses: ["Book_Ch_V"] }
+let drillLevel = 'books'; // 'books' | 'chapters' | 'verses'
+let drillBook = null;
+let drillChapter = null;
+
+function getMarks() {
+  return lsGet('read_marks', { books: [], chapters: [], verses: [] });
+}
+function saveMarks(m) { lsSet('read_marks', m); }
+
+function isBookMarked(m, book) { return m.books.includes(book); }
+function isChapterMarked(m, book, ch) {
+  return m.books.includes(book) || m.chapters.includes(`${book}_${ch}`);
+}
+function isVerseMarked(m, book, ch, v) {
+  return m.books.includes(book) || m.chapters.includes(`${book}_${ch}`) || m.verses.includes(`${book}_${ch}_${v}`);
+}
+
+function toggleBook(book) {
+  const m = getMarks();
+  if (m.books.includes(book)) {
+    m.books = m.books.filter(b => b !== book);
+    // Also remove all chapter/verse marks for this book
+    m.chapters = m.chapters.filter(c => !c.startsWith(book + '_'));
+    m.verses = m.verses.filter(v => !v.startsWith(book + '_'));
+  } else {
+    m.books.push(book);
+    // Clean up granular marks since book covers all
+    m.chapters = m.chapters.filter(c => !c.startsWith(book + '_'));
+    m.verses = m.verses.filter(v => !v.startsWith(book + '_'));
+  }
+  saveMarks(m);
+}
+
+function toggleChapter(book, ch) {
+  const m = getMarks();
+  const key = `${book}_${ch}`;
+  if (m.books.includes(book)) {
+    // Book was fully marked — unmark this chapter, mark all others
+    m.books = m.books.filter(b => b !== book);
+    const data = bookCache[book];
+    if (data) {
+      data.chapters.forEach(c => {
+        const ck = `${book}_${c.chapter}`;
+        if (ck !== key && !m.chapters.includes(ck)) m.chapters.push(ck);
+      });
+    }
+  } else if (m.chapters.includes(key)) {
+    m.chapters = m.chapters.filter(c => c !== key);
+    // Also remove verse marks for this chapter
+    m.verses = m.verses.filter(v => !v.startsWith(key + '_'));
+  } else {
+    m.chapters.push(key);
+    // Clean up verse-level marks since chapter covers all
+    m.verses = m.verses.filter(v => !v.startsWith(key + '_'));
+    // Check if all chapters are now marked → promote to book
+    const data = bookCache[book];
+    if (data) {
+      const allMarked = data.chapters.every(c => m.chapters.includes(`${book}_${c.chapter}`));
+      if (allMarked) {
+        m.books.push(book);
+        m.chapters = m.chapters.filter(c => !c.startsWith(book + '_'));
+      }
+    }
+  }
+  saveMarks(m);
+}
+
+function toggleVerse(book, ch, v) {
+  const m = getMarks();
+  const vKey = `${book}_${ch}_${v}`;
+  const cKey = `${book}_${ch}`;
+  if (m.books.includes(book) || m.chapters.includes(cKey)) {
+    // Was fully marked at higher level — unmark this verse, mark all others in chapter
+    if (m.books.includes(book)) {
+      m.books = m.books.filter(b => b !== book);
+      const data = bookCache[book];
+      if (data) {
+        data.chapters.forEach(c => {
+          if (c.chapter !== String(ch) && !m.chapters.includes(`${book}_${c.chapter}`)) {
+            m.chapters.push(`${book}_${c.chapter}`);
+          }
+        });
+      }
+    }
+    m.chapters = m.chapters.filter(c => c !== cKey);
+    // Mark all verses except this one
+    const data = bookCache[book];
+    if (data) {
+      const chapter = data.chapters.find(c => String(c.chapter) === String(ch));
+      if (chapter) {
+        chapter.verses.forEach(vv => {
+          const k = `${book}_${ch}_${vv.verse}`;
+          if (k !== vKey && !m.verses.includes(k)) m.verses.push(k);
+        });
+      }
+    }
+  } else if (m.verses.includes(vKey)) {
+    m.verses = m.verses.filter(x => x !== vKey);
+  } else {
+    m.verses.push(vKey);
+    // Check if all verses in chapter are now marked → promote to chapter
+    const data = bookCache[book];
+    if (data) {
+      const chapter = data.chapters.find(c => String(c.chapter) === String(ch));
+      if (chapter) {
+        const allMarked = chapter.verses.every(vv => m.verses.includes(`${book}_${ch}_${vv.verse}`));
+        if (allMarked) {
+          m.chapters.push(cKey);
+          m.verses = m.verses.filter(x => !x.startsWith(cKey + '_'));
+          // Check if all chapters now marked → promote to book
+          const allChMarked = data.chapters.every(c => m.chapters.includes(`${book}_${c.chapter}`));
+          if (allChMarked) {
+            m.books.push(book);
+            m.chapters = m.chapters.filter(c => !c.startsWith(book + '_'));
+          }
+        }
+      }
+    }
+  }
+  saveMarks(m);
+}
+
+function countBookChaptersMarked(m, book) {
+  if (m.books.includes(book)) return bookCache[book] ? bookCache[book].chapters.length : 0;
+  return m.chapters.filter(c => c.startsWith(book + '_')).length;
+}
+
+async function renderDrill() {
+  const el = document.getElementById('trackVerseView');
+  if (!el) return;
+  const m = getMarks();
+
+  if (drillLevel === 'books') {
+    // BOOKS VIEW — all 66 books, with select all / deselect all
+    const otBooks = CONFIG.BOOKS.slice(0, CONFIG.OT_COUNT);
+    const ntBooks = CONFIG.BOOKS.slice(CONFIG.OT_COUNT);
+    const allMarked = CONFIG.BOOKS.every(b => isBookMarked(m, b));
+    const otAllMarked = otBooks.every(b => isBookMarked(m, b));
+    const ntAllMarked = ntBooks.every(b => isBookMarked(m, b));
+
+    let html = `<div class="drill-actions">
+      <button class="btn btn-sm ${allMarked ? 'btn-muted' : 'btn-outline'}" id="drillSelectAll">${allMarked ? 'Deselect All' : 'Select All'}</button>
+      <button class="btn btn-sm ${otAllMarked ? 'btn-muted' : 'btn-outline'}" id="drillSelectOT">${otAllMarked ? 'Deselect' : 'Select'} OT</button>
+      <button class="btn btn-sm ${ntAllMarked ? 'btn-muted' : 'btn-outline'}" id="drillSelectNT">${ntAllMarked ? 'Deselect' : 'Select'} NT</button>
+    </div>`;
+
+    html += `<div style="font-size:0.8rem;color:var(--txt-muted);margin-bottom:0.5rem">Old Testament</div><div class="mark-grid" style="margin-bottom:1rem">`;
+    otBooks.forEach(b => {
+      const marked = isBookMarked(m, b);
+      const chapCount = bookCache[b] ? bookCache[b].chapters.length : '?';
+      const chapMarked = countBookChaptersMarked(m, b);
+      const partial = !marked && chapMarked > 0;
+      html += `<div class="mark-chip mark-chip-wide${marked ? ' marked' : ''}" data-drill-book="${b}" title="${displayNameFull(b)} — ${chapMarked}/${chapCount} chapters">${displayNameFull(b)}${partial ? `<span style="font-size:0.6rem;margin-left:0.3rem;opacity:0.7">${chapMarked}</span>` : ''}</div>`;
+    });
+    html += `</div>`;
+
+    html += `<div style="font-size:0.8rem;color:var(--txt-muted);margin-bottom:0.5rem">New Testament</div><div class="mark-grid">`;
+    ntBooks.forEach(b => {
+      const marked = isBookMarked(m, b);
+      const chapCount = bookCache[b] ? bookCache[b].chapters.length : '?';
+      const chapMarked = countBookChaptersMarked(m, b);
+      const partial = !marked && chapMarked > 0;
+      html += `<div class="mark-chip mark-chip-wide${marked ? ' marked' : ''}" data-drill-book="${b}" title="${displayNameFull(b)} — ${chapMarked}/${chapCount} chapters">${displayNameFull(b)}${partial ? `<span style="font-size:0.6rem;margin-left:0.3rem;opacity:0.7">${chapMarked}</span>` : ''}</div>`;
+    });
+    html += `</div>`;
+    el.innerHTML = html;
+
+    // Events — click book chip to drill into chapters
+    el.querySelectorAll('[data-drill-book]').forEach(chip => {
+      chip.addEventListener('click', async () => {
+        drillBook = chip.dataset.drillBook;
+        drillLevel = 'chapters';
+        await fetchBook(drillBook).catch(() => {});
+        renderDrill();
+      });
+    });
+
+    // Select all / deselect all
+    document.getElementById('drillSelectAll').addEventListener('click', () => {
+      const m = getMarks();
+      if (CONFIG.BOOKS.every(b => m.books.includes(b))) {
+        m.books = []; m.chapters = []; m.verses = [];
+      } else {
+        m.books = [...CONFIG.BOOKS]; m.chapters = []; m.verses = [];
+      }
+      saveMarks(m); renderDrill();
+    });
+    document.getElementById('drillSelectOT').addEventListener('click', () => {
+      const m = getMarks();
+      const otBooks = CONFIG.BOOKS.slice(0, CONFIG.OT_COUNT);
+      if (otBooks.every(b => m.books.includes(b))) {
+        otBooks.forEach(b => { m.books = m.books.filter(x => x !== b); m.chapters = m.chapters.filter(c => !c.startsWith(b+'_')); m.verses = m.verses.filter(v => !v.startsWith(b+'_')); });
+      } else {
+        otBooks.forEach(b => { if (!m.books.includes(b)) m.books.push(b); m.chapters = m.chapters.filter(c => !c.startsWith(b+'_')); m.verses = m.verses.filter(v => !v.startsWith(b+'_')); });
+      }
+      saveMarks(m); renderDrill();
+    });
+    document.getElementById('drillSelectNT').addEventListener('click', () => {
+      const m = getMarks();
+      const ntBooks = CONFIG.BOOKS.slice(CONFIG.OT_COUNT);
+      if (ntBooks.every(b => m.books.includes(b))) {
+        ntBooks.forEach(b => { m.books = m.books.filter(x => x !== b); m.chapters = m.chapters.filter(c => !c.startsWith(b+'_')); m.verses = m.verses.filter(v => !v.startsWith(b+'_')); });
+      } else {
+        ntBooks.forEach(b => { if (!m.books.includes(b)) m.books.push(b); m.chapters = m.chapters.filter(c => !c.startsWith(b+'_')); m.verses = m.verses.filter(v => !v.startsWith(b+'_')); });
+      }
+      saveMarks(m); renderDrill();
+    });
+
+  } else if (drillLevel === 'chapters') {
+    // CHAPTERS VIEW — show chapters for drillBook
+    const data = bookCache[drillBook];
+    if (!data) {
+      try { await fetchBook(drillBook); } catch(e) {
+        el.innerHTML = '<div class="empty-state"><p>Could not load book data.</p></div>';
+        return;
+      }
+    }
+    const bookData = bookCache[drillBook];
+    const chapters = bookData.chapters;
+    const allMarked = isBookMarked(m, drillBook);
+    const allChapMarked = allMarked || chapters.every(c => isChapterMarked(m, drillBook, c.chapter));
+
+    let html = `<div class="drill-breadcrumb">
+      <a id="drillBackBooks">All Books</a> <span>&#8250;</span> <strong style="color:var(--txt)">${displayNameFull(drillBook)}</strong>
+    </div>`;
+    html += `<div class="drill-actions">
+      <button class="btn btn-sm ${allChapMarked ? 'btn-muted' : 'btn-outline'}" id="drillSelectAllCh">${allChapMarked ? 'Deselect All' : 'Select All'} Chapters</button>
+      <span style="font-size:0.8rem;color:var(--txt-muted)">${chapters.length} chapters</span>
+    </div>`;
+    html += `<div class="mark-grid">`;
+    chapters.forEach(c => {
+      const ch = c.chapter;
+      const marked = isChapterMarked(m, drillBook, ch);
+      // Check partial verse marks
+      const verseMarks = m.verses.filter(v => v.startsWith(`${drillBook}_${ch}_`));
+      const partial = !marked && verseMarks.length > 0;
+      html += `<div class="mark-chip${marked ? ' marked' : ''}" data-drill-ch="${ch}" title="Chapter ${ch}${partial ? ' (partial)' : ''}">${ch}${partial ? `<span style="font-size:0.55rem;margin-left:0.2rem;opacity:0.7">&#8226;</span>` : ''}</div>`;
+    });
+    html += `</div>`;
+    el.innerHTML = html;
+
+    // Back to books
+    document.getElementById('drillBackBooks').addEventListener('click', () => {
+      drillLevel = 'books'; drillBook = null; renderDrill();
+    });
+
+    // Click chapter to drill into verses
+    el.querySelectorAll('[data-drill-ch]').forEach(chip => {
+      chip.addEventListener('click', () => {
+        drillChapter = chip.dataset.drillCh;
+        drillLevel = 'verses';
+        renderDrill();
+      });
+    });
+
+    // Select/deselect all chapters
+    document.getElementById('drillSelectAllCh').addEventListener('click', () => {
+      if (allChapMarked) {
+        // Deselect: remove book-level and all chapter/verse marks
+        const m = getMarks();
+        m.books = m.books.filter(b => b !== drillBook);
+        m.chapters = m.chapters.filter(c => !c.startsWith(drillBook + '_'));
+        m.verses = m.verses.filter(v => !v.startsWith(drillBook + '_'));
+        saveMarks(m);
+      } else {
+        toggleBook(drillBook);
+        // Ensure it's ON
+        const m = getMarks();
+        if (!m.books.includes(drillBook)) { m.books.push(drillBook); m.chapters = m.chapters.filter(c => !c.startsWith(drillBook+'_')); m.verses = m.verses.filter(v => !v.startsWith(drillBook+'_')); saveMarks(m); }
+      }
+      renderDrill();
+    });
+
+  } else if (drillLevel === 'verses') {
+    // VERSES VIEW — show all verses in drillBook / drillChapter
+    const bookData = bookCache[drillBook];
+    if (!bookData) { el.innerHTML = '<div class="empty-state"><p>Loading...</p></div>'; return; }
+    const chapter = bookData.chapters.find(c => String(c.chapter) === String(drillChapter));
+    if (!chapter) { el.innerHTML = '<div class="empty-state"><p>Chapter not found.</p></div>'; return; }
+
+    const allMarked = isChapterMarked(m, drillBook, drillChapter);
+    const allVersesMarked = allMarked || chapter.verses.every(v => isVerseMarked(m, drillBook, drillChapter, v.verse));
+
+    let html = `<div class="drill-breadcrumb">
+      <a id="drillBackBooks2">All Books</a> <span>&#8250;</span>
+      <a id="drillBackChapters">${displayNameFull(drillBook)}</a> <span>&#8250;</span>
+      <strong style="color:var(--txt)">Chapter ${drillChapter}</strong>
+    </div>`;
+    html += `<div class="drill-actions">
+      <button class="btn btn-sm ${allVersesMarked ? 'btn-muted' : 'btn-outline'}" id="drillSelectAllV">${allVersesMarked ? 'Deselect All' : 'Select All'} Verses</button>
+      <span style="font-size:0.8rem;color:var(--txt-muted)">${chapter.verses.length} verses</span>
+    </div>`;
+    html += `<div class="mark-grid">`;
+    chapter.verses.forEach(v => {
+      const marked = isVerseMarked(m, drillBook, drillChapter, v.verse);
+      html += `<div class="mark-chip${marked ? ' marked' : ''}" data-drill-v="${v.verse}" title="Verse ${v.verse}: ${v.text.slice(0,60)}...">${v.verse}</div>`;
+    });
+    html += `</div>`;
+    el.innerHTML = html;
+
+    // Back navigation
+    document.getElementById('drillBackBooks2').addEventListener('click', () => {
+      drillLevel = 'books'; drillBook = null; drillChapter = null; renderDrill();
+    });
+    document.getElementById('drillBackChapters').addEventListener('click', () => {
+      drillLevel = 'chapters'; drillChapter = null; renderDrill();
+    });
+
+    // Click verse to toggle
+    el.querySelectorAll('[data-drill-v]').forEach(chip => {
+      chip.addEventListener('click', () => {
+        toggleVerse(drillBook, drillChapter, chip.dataset.drillV);
+        renderDrill();
+      });
+    });
+
+    // Select/deselect all verses
+    document.getElementById('drillSelectAllV').addEventListener('click', () => {
+      if (allVersesMarked) {
+        // Deselect all verses in this chapter
+        const m = getMarks();
+        if (m.books.includes(drillBook)) {
+          // Book was fully marked — unmark book, mark all OTHER chapters
+          m.books = m.books.filter(b => b !== drillBook);
+          bookData.chapters.forEach(c => {
+            if (String(c.chapter) !== String(drillChapter)) {
+              if (!m.chapters.includes(`${drillBook}_${c.chapter}`)) m.chapters.push(`${drillBook}_${c.chapter}`);
+            }
+          });
+        }
+        m.chapters = m.chapters.filter(c => c !== `${drillBook}_${drillChapter}`);
+        m.verses = m.verses.filter(v => !v.startsWith(`${drillBook}_${drillChapter}_`));
+        saveMarks(m);
+      } else {
+        toggleChapter(drillBook, drillChapter);
+        // Ensure it's ON
+        const m = getMarks();
+        const cKey = `${drillBook}_${drillChapter}`;
+        if (!m.books.includes(drillBook) && !m.chapters.includes(cKey)) {
+          m.chapters.push(cKey);
+          m.verses = m.verses.filter(v => !v.startsWith(cKey + '_'));
+          saveMarks(m);
+        }
+      }
+      renderDrill();
+    });
+  }
+}
+
+// ═══════════════════════════════════════════════
+// PLANS TAB
+// ═══════════════════════════════════════════════
+let plansView = 'list'; // 'list' | 'create' | 'detail'
+let viewingPlanId = null;
+
+function getPlans() { return lsGet('plans', []); }
+function savePlans(p) { lsSet('plans', p); }
+function getPlan(id) { return getPlans().find(p => p.id === id); }
+
+function updatePlan(id, updates) {
+  const plans = getPlans();
+  const idx = plans.findIndex(p => p.id === id);
+  if (idx === -1) return;
+  Object.assign(plans[idx], updates);
+  savePlans(plans);
+}
+
+// Generate daily reading schedule from books + date range
+function generateSchedule(books, startDate, endDate) {
+  // Gather all chapters from selected books
+  const items = [];
+  books.forEach(bookName => {
+    const data = bookCache[bookName];
+    if (!data) return;
+    data.chapters.forEach(ch => {
+      items.push({ book: bookName, chapter: parseInt(ch.chapter) });
+    });
+  });
+  if (items.length === 0) return [];
+
+  const start = new Date(startDate + 'T00:00:00');
+  const end = new Date(endDate + 'T00:00:00');
+  const totalDays = Math.max(1, Math.round((end - start) / 86400000) + 1);
+  const perDay = Math.ceil(items.length / totalDays);
+  const schedule = [];
+  let itemIdx = 0;
+
+  for (let d = 0; d < totalDays && itemIdx < items.length; d++) {
+    const date = new Date(start);
+    date.setDate(date.getDate() + d);
+    const dk = dateKey(date.toISOString());
+    const dayItems = items.slice(itemIdx, itemIdx + perDay);
+    itemIdx += perDay;
+    if (dayItems.length === 0) continue;
+    // Format reading label
+    const first = dayItems[0], last = dayItems[dayItems.length - 1];
+    let label;
+    if (first.book === last.book) {
+      label = `${displayNameFull(first.book)} ${first.chapter}${dayItems.length > 1 ? '-' + last.chapter : ''}`;
+    } else {
+      label = `${displayNameFull(first.book)} ${first.chapter} — ${displayNameFull(last.book)} ${last.chapter}`;
+    }
+    schedule.push({ date: dk, reading: label, items: dayItems, done: false });
+  }
+  return schedule;
+}
+
+function getPlanProgress(plan) {
+  if (plan.type === 'reading') {
+    const total = (plan.schedule || []).length;
+    const done = (plan.schedule || []).filter(s => s.done).length;
+    return { total, done, pct: total ? Math.round(done / total * 100) : 0 };
+  } else if (plan.type === 'study') {
+    const total = (plan.lessons || []).length;
+    const done = (plan.lessons || []).filter(l => l.done).length;
+    return { total, done, pct: total ? Math.round(done / total * 100) : 0 };
+  } else {
+    // Challenge — consistency
+    const logDates = plan.logDates || [];
+    const start = new Date(plan.createdDate);
+    const now = new Date();
+    const totalDays = Math.max(1, Math.round((now - start) / 86400000) + 1);
+    return { total: totalDays, done: logDates.length, pct: totalDays ? Math.round(logDates.length / totalDays * 100) : 0 };
+  }
+}
+
+function getPlanConsistency(plan) {
+  if (plan.type === 'reading' && plan.schedule) {
+    const tk = todayKey();
+    const past = plan.schedule.filter(s => s.date <= tk);
+    if (past.length === 0) return { total: 0, done: 0, pct: 0 };
+    const done = past.filter(s => s.done).length;
+    return { total: past.length, done, pct: Math.round(done / past.length * 100) };
+  }
+  return getPlanProgress(plan);
+}
+
+function getTodayTask(plan) {
+  const tk = todayKey();
+  if (plan.type === 'reading' && plan.schedule) {
+    return plan.schedule.find(s => s.date === tk && !s.done);
+  }
+  if (plan.type === 'study' && plan.lessons) {
+    return plan.lessons.find(l => !l.done);
+  }
+  if (plan.type === 'challenge') {
+    const logDates = plan.logDates || [];
+    if (!logDates.includes(tk)) return { type: 'challenge', habit: plan.habit };
+  }
+  return null;
+}
+
+// ── Plans list view ──
+function renderPlans() {
+  const el = document.getElementById('tab-plans');
+  if (plansView === 'create') { renderPlanCreator(); return; }
+  if (plansView === 'detail') { renderPlanDetail(); return; }
+  if (plansView === 'edit') { renderPlanEdit(); return; }
+
+  const plans = getPlans();
+  const active = plans.filter(p => p.status === 'active');
+  const completed = plans.filter(p => p.status === 'completed' || p.status === 'archived');
+
+  let html = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.25rem">
+    <div class="section-title" style="margin-bottom:0">Your Plans</div>
+    <button class="btn" id="newPlanBtn">+ New Plan</button>
+  </div>`;
+
+  if (active.length === 0 && completed.length === 0) {
+    html += `<div class="empty-state"><div class="empty-icon">&#128506;</div>
+      <p>No plans yet. Create a reading plan, study a topic, or start a spiritual challenge.</p></div>`;
+  } else {
+    active.forEach(p => { html += planCardHTML(p); });
+    if (completed.length > 0) {
+      html += `<hr class="gold-rule"><div style="font-size:0.8rem;color:var(--txt-muted);margin-bottom:0.75rem">Completed & Archived</div>`;
+      completed.forEach(p => { html += planCardHTML(p); });
+    }
+  }
+  el.innerHTML = html;
+
+  document.getElementById('newPlanBtn').addEventListener('click', () => {
+    plansView = 'create'; renderPlans();
+  });
+  el.querySelectorAll('.plan-card').forEach(card => {
+    card.addEventListener('click', () => {
+      viewingPlanId = card.dataset.pid;
+      plansView = 'detail';
+      renderPlans();
+    });
+  });
+}
+
+function planCardHTML(p) {
+  const prog = getPlanProgress(p);
+  const con = getPlanConsistency(p);
+  const badgeClass = { reading: 'badge-reading', study: 'badge-study', challenge: 'badge-challenge' };
+  const typeLabel = { reading: 'Reading', study: 'Study', challenge: 'Challenge' };
+  const today = getTodayTask(p);
+  return `<div class="plan-card" data-pid="${p.id}">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.4rem">
+      <span class="plan-type-badge ${badgeClass[p.type]}">${typeLabel[p.type]}</span>
+      <span style="font-size:0.75rem;color:var(--txt-muted)">${p.status === 'active' ? con.pct + '% consistent' : p.status}</span>
+    </div>
+    <div style="font-family:Georgia,serif;font-size:1rem;margin-bottom:0.3rem">${p.title}</div>
+    ${p.description ? `<div style="font-size:0.85rem;color:var(--txt-muted);margin-bottom:0.4rem">${p.description.slice(0,80)}</div>` : ''}
+    <div class="progress-bar"><div class="progress-fill" style="width:${prog.pct}%"></div></div>
+    <div style="display:flex;justify-content:space-between;font-size:0.75rem;color:var(--txt-muted)">
+      <span>${prog.done}/${prog.total} ${p.type === 'challenge' ? 'days' : 'done'}</span>
+      ${today && p.status === 'active' ? `<span style="color:var(--ac)">Today: ${today.reading || today.passage || today.habit || 'Due'}</span>` : ''}
+    </div>
+  </div>`;
+}
+
+// ── Plan creator ──
+function renderPlanCreator() {
+  const el = document.getElementById('tab-plans');
+  el.innerHTML = `
+    <div class="drill-breadcrumb" style="margin-bottom:1.25rem">
+      <a id="backToPlans">Plans</a> <span>&#8250;</span> <strong style="color:var(--txt)">New Plan</strong>
+    </div>
+    <div class="sub-tabs" style="margin-bottom:1.25rem">
+      <button class="sub-tab-btn active" data-ct="manual">Manual</button>
+      <button class="sub-tab-btn" data-ct="ai">AI-Assisted</button>
+    </div>
+    <div id="planCreateContent"></div>`;
+
+  document.getElementById('backToPlans').addEventListener('click', () => {
+    plansView = 'list'; renderPlans();
+  });
+
+  let createMode = 'manual';
+  el.querySelectorAll('.sub-tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      el.querySelectorAll('.sub-tab-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      createMode = btn.dataset.ct;
+      if (createMode === 'manual') renderManualCreator();
+      else renderAICreator();
+    });
+  });
+  renderManualCreator();
+}
+
+function renderManualCreator() {
+  const el = document.getElementById('planCreateContent');
+  const today = todayKey();
+  const bookOpts = CONFIG.BOOKS.map(b => `<option value="${b}">${displayNameFull(b)}</option>`).join('');
+
+  el.innerHTML = `
+    <div class="card" style="margin-bottom:1rem">
+      <div style="margin-bottom:0.75rem">
+        <label style="font-size:0.8rem;color:var(--txt-muted);display:block;margin-bottom:0.25rem">Plan type</label>
+        <select id="cpType">
+          <option value="reading">Reading Plan</option>
+          <option value="study">Study Plan</option>
+          <option value="challenge">Challenge</option>
+        </select>
+      </div>
+      <div style="margin-bottom:0.75rem">
+        <label style="font-size:0.8rem;color:var(--txt-muted);display:block;margin-bottom:0.25rem">Title</label>
+        <input type="text" id="cpTitle" placeholder="e.g. Read Psalms in 90 days" style="width:100%">
+      </div>
+
+      <div id="cpReadingFields">
+        <div style="margin-bottom:0.75rem">
+          <label style="font-size:0.8rem;color:var(--txt-muted);display:block;margin-bottom:0.25rem">Books to read (hold Ctrl/Cmd to multi-select)</label>
+          <select id="cpBooks" multiple size="6" style="width:100%">${bookOpts}</select>
+        </div>
+        <div style="display:flex;gap:0.75rem;margin-bottom:0.75rem">
+          <div style="flex:1"><label style="font-size:0.8rem;color:var(--txt-muted);display:block;margin-bottom:0.25rem">Start</label>
+            <input type="date" id="cpStart" value="${today}" style="width:100%"></div>
+          <div style="flex:1"><label style="font-size:0.8rem;color:var(--txt-muted);display:block;margin-bottom:0.25rem">End</label>
+            <input type="date" id="cpEnd" style="width:100%"></div>
+        </div>
+      </div>
+
+      <div id="cpStudyFields" style="display:none">
+        <div style="margin-bottom:0.75rem">
+          <label style="font-size:0.8rem;color:var(--txt-muted);display:block;margin-bottom:0.25rem">Topic to study</label>
+          <textarea id="cpTopic" placeholder="e.g. How to honor my parents, preparing to be a wife, understanding forgiveness..." rows="2" style="width:100%"></textarea>
+        </div>
+        <div style="display:flex;gap:0.75rem;margin-bottom:0.75rem">
+          <div style="flex:1"><label style="font-size:0.8rem;color:var(--txt-muted);display:block;margin-bottom:0.25rem">Target start</label>
+            <input type="date" id="cpStudyStart" value="${today}" style="width:100%"></div>
+          <div style="flex:1"><label style="font-size:0.8rem;color:var(--txt-muted);display:block;margin-bottom:0.25rem">Target end (optional)</label>
+            <input type="date" id="cpStudyEnd" style="width:100%"></div>
+        </div>
+      </div>
+
+      <div id="cpChallengeFields" style="display:none">
+        <div style="margin-bottom:0.75rem">
+          <label style="font-size:0.8rem;color:var(--txt-muted);display:block;margin-bottom:0.25rem">Habit / Challenge</label>
+          <input type="text" id="cpHabit" placeholder="e.g. Pray every morning, Memorize one verse per week" style="width:100%">
+        </div>
+        <div style="margin-bottom:0.75rem">
+          <label style="font-size:0.8rem;color:var(--txt-muted);display:block;margin-bottom:0.25rem">Frequency</label>
+          <select id="cpFreq"><option value="daily">Daily</option><option value="weekly">Weekly</option></select>
+        </div>
+        <div style="margin-bottom:0.75rem">
+          <label style="font-size:0.8rem;color:var(--txt-muted);display:block;margin-bottom:0.25rem">Linked passage (optional)</label>
+          <input type="text" id="cpPassage" placeholder="e.g. 1 Thessalonians 5:17" style="width:100%">
+        </div>
+      </div>
+
+      <div style="margin-bottom:0.75rem">
+        <label style="font-size:0.8rem;color:var(--txt-muted);display:block;margin-bottom:0.25rem">Description (optional)</label>
+        <input type="text" id="cpDesc" placeholder="Why this plan matters to you" style="width:100%">
+      </div>
+      <div style="margin-bottom:0.75rem">
+        <label style="font-size:0.8rem;color:var(--txt-muted);display:block;margin-bottom:0.25rem">Accountability level</label>
+        <select id="cpAccountability">
+          <option value="low">Low — gentle reminders</option>
+          <option value="med" selected>Medium — tracks consistency, nudges when behind</option>
+          <option value="high">High — AI coaches you, flags missed days, holds you to it</option>
+        </select>
+      </div>
+      <button class="btn" id="cpSave" style="width:100%">Create Plan</button>
+      <div id="cpError" style="color:var(--badge-orange);font-size:0.85rem;margin-top:0.5rem;display:none"></div>
+    </div>`;
+
+  // Toggle fields by type
+  document.getElementById('cpType').addEventListener('change', function() {
+    document.getElementById('cpReadingFields').style.display = this.value === 'reading' ? '' : 'none';
+    document.getElementById('cpStudyFields').style.display = this.value === 'study' ? '' : 'none';
+    document.getElementById('cpChallengeFields').style.display = this.value === 'challenge' ? '' : 'none';
+  });
+
+  document.getElementById('cpSave').addEventListener('click', async () => {
+    const type = document.getElementById('cpType').value;
+    const title = document.getElementById('cpTitle').value.trim();
+    const desc = document.getElementById('cpDesc').value.trim();
+    const errEl = document.getElementById('cpError');
+    errEl.style.display = 'none';
+
+    if (!title) { errEl.textContent = 'Please enter a title.'; errEl.style.display = ''; return; }
+
+    const accountability = document.getElementById('cpAccountability').value;
+    const plan = { id: uid(), type, title, description: desc, status: 'active', createdDate: new Date().toISOString(), accountability };
+
+    if (type === 'reading') {
+      const selectedBooks = Array.from(document.getElementById('cpBooks').selectedOptions).map(o => o.value);
+      const startDate = document.getElementById('cpStart').value;
+      const endDate = document.getElementById('cpEnd').value;
+      if (selectedBooks.length === 0) { errEl.textContent = 'Select at least one book.'; errEl.style.display = ''; return; }
+      if (!endDate) { errEl.textContent = 'Set an end date.'; errEl.style.display = ''; return; }
+      // Preload selected books
+      for (const b of selectedBooks) { await fetchBook(b).catch(() => {}); }
+      plan.books = selectedBooks;
+      plan.startDate = startDate;
+      plan.endDate = endDate;
+      plan.schedule = generateSchedule(selectedBooks, startDate, endDate);
+      if (plan.schedule.length === 0) { errEl.textContent = 'Could not load book data. Try again.'; errEl.style.display = ''; return; }
+    } else if (type === 'study') {
+      const topic = document.getElementById('cpTopic').value.trim();
+      if (!topic) { errEl.textContent = 'Describe a topic.'; errEl.style.display = ''; return; }
+      plan.topic = topic;
+      plan.lessons = [];
+      plan.startDate = document.getElementById('cpStudyStart').value || todayKey();
+      const studyEnd = document.getElementById('cpStudyEnd').value;
+      if (studyEnd) plan.endDate = studyEnd;
+    } else {
+      const habit = document.getElementById('cpHabit').value.trim();
+      if (!habit) { errEl.textContent = 'Describe the habit.'; errEl.style.display = ''; return; }
+      plan.habit = habit;
+      plan.frequency = document.getElementById('cpFreq').value;
+      plan.linkedPassages = document.getElementById('cpPassage').value.trim() ? [document.getElementById('cpPassage').value.trim()] : [];
+      plan.logDates = [];
+    }
+
+    const plans = getPlans();
+    plans.push(plan);
+    savePlans(plans);
+
+    viewingPlanId = plan.id;
+    plansView = 'detail';
+    renderPlans();
+    updateBanner();
+  });
+}
+
+function renderAICreator() {
+  const el = document.getElementById('planCreateContent');
+  el.innerHTML = `
+    <div class="card">
+      <div style="margin-bottom:0.75rem">
+        <label style="font-size:0.8rem;color:var(--txt-muted);display:block;margin-bottom:0.25rem">Describe your goal</label>
+        <textarea id="aiGoal" rows="3" style="width:100%" placeholder="e.g. I want to understand how to honor my parents, or read through the Gospels in 30 days, or build a daily prayer habit..."></textarea>
+      </div>
+      <hr class="gold-rule">
+      <div style="font-size:0.85rem;color:var(--txt-muted);margin-bottom:0.75rem">Customize your plan:</div>
+      <div style="display:flex;flex-direction:column;gap:0.6rem;margin-bottom:1rem">
+        <label style="display:flex;align-items:center;gap:0.6rem;cursor:pointer;font-size:0.9rem">
+          <input type="checkbox" id="aiJournal" checked> Include journaling prompts
+        </label>
+        <label style="display:flex;align-items:center;gap:0.6rem;cursor:pointer;font-size:0.9rem">
+          <input type="checkbox" id="aiPrayers"> Include prayer guides
+        </label>
+        <label style="display:flex;align-items:center;gap:0.6rem;cursor:pointer;font-size:0.9rem">
+          <input type="checkbox" id="aiMemory"> Include memory verses
+        </label>
+        <label style="display:flex;align-items:center;gap:0.6rem;cursor:pointer;font-size:0.9rem">
+          <input type="checkbox" id="aiChallenge"> Include daily challenges / action steps
+        </label>
+      </div>
+      <div style="display:flex;gap:0.75rem;align-items:flex-end;margin-bottom:1rem">
+        <div style="flex:1">
+          <label style="font-size:0.8rem;color:var(--txt-muted);display:block;margin-bottom:0.25rem">How many proposals?</label>
+          <select id="aiCount">
+            <option value="1">1 plan</option>
+            <option value="2" selected>2 plans to compare</option>
+            <option value="3">3 plans to compare</option>
+          </select>
+        </div>
+      </div>
+      <button class="btn" id="aiGenerate" style="width:100%">Generate Plans</button>
+      <div id="aiResult" style="margin-top:1rem"></div>
+    </div>`;
+
+  document.getElementById('aiGenerate').addEventListener('click', async () => {
+    const goal = document.getElementById('aiGoal').value.trim();
+    if (!goal) return;
+    const resultEl = document.getElementById('aiResult');
+    const count = parseInt(document.getElementById('aiCount').value);
+    const includeJournal = document.getElementById('aiJournal').checked;
+    const includePrayers = document.getElementById('aiPrayers').checked;
+    const includeMemory = document.getElementById('aiMemory').checked;
+    const includeChallenge = document.getElementById('aiChallenge').checked;
+
+    resultEl.innerHTML = `<div class="loading-msg">Generating ${count} proposal${count > 1 ? 's' : ''}...</div>`;
+
+    const extras = [];
+    if (includeJournal) extras.push('a journaling prompt for each day/lesson');
+    if (includePrayers) extras.push('a short prayer guide or prayer focus for each day/lesson');
+    if (includeMemory) extras.push('a memory verse to meditate on');
+    if (includeChallenge) extras.push('a practical daily challenge or action step');
+    const extrasStr = extras.length ? `\n\nFor each lesson/day, also include: ${extras.join(', ')}.` : '';
+
+    const systemPrompt = `You are a Bible study planner. The user describes a spiritual goal. Generate EXACTLY ${count} different plan proposal(s) as a JSON array of objects.
+
+Each plan determines its own type: "reading" (specific books/chapters), "study" (topic with passages + questions), or "challenge" (habit-based).
+
+IMPORTANT for all plans:
+- "title": A short, clear plan name (NOT the user's prompt repeated)
+- "description": A 1-2 sentence summary of the approach and what the user will gain (NOT the user's prompt — write an original description of how this plan works)
+- "topic": For study plans only — a clean, concise topic label (e.g. "Overcoming Bitterness" not the user's full request)
+- "daysNeeded": Always include this for every plan type — how many days you recommend
+
+For reading plans: {"type":"reading","title":"...","description":"...","books":["BookFilename"],"daysNeeded":N}
+For study plans: {"type":"study","title":"...","description":"...","topic":"clean topic label","daysNeeded":N,"lessons":[{"passage":"Book Chapter:Verses","question":"Reflection question"${includeJournal ? ',"journal":"Journaling prompt"' : ''}${includePrayers ? ',"prayer":"Prayer focus"' : ''}${includeMemory ? ',"memoryVerse":"Verse reference"' : ''}${includeChallenge ? ',"challenge":"Action step"' : ''}}]} — include 6-12 lessons.
+For challenge plans: {"type":"challenge","title":"...","description":"...","habit":"...","frequency":"daily|weekly","daysNeeded":N,"linkedPassages":["Reference"]}
+${extrasStr}
+
+If generating ${count} proposals, vary the approach — different angles, lengths, or structures so the user has real choices. Use exact KJV book filenames (e.g. "Psalms", "1Corinthians", "SongofSolomon"). Return ONLY a valid JSON array, no markdown.`;
+
+    try {
+      const content = await callAI(systemPrompt, goal, { temperature: 0.6, max_tokens: count > 1 ? 1200 : 600 });
+      let proposals;
+      try {
+        const jsonStr = content.replace(/```json?\s*/g, '').replace(/```/g, '').trim();
+        proposals = JSON.parse(jsonStr);
+        if (!Array.isArray(proposals)) proposals = [proposals];
+      } catch(e) {
+        const match = content.match(/\[[\s\S]*\]/);
+        if (match) proposals = JSON.parse(match[0]);
+        else {
+          const objMatch = content.match(/\{[\s\S]*\}/);
+          if (objMatch) proposals = [JSON.parse(objMatch[0])];
+          else throw new Error('Could not parse');
+        }
+      }
+
+      // Render proposal cards
+      let html = `<div style="font-size:0.85rem;color:var(--txt-muted);margin-bottom:0.75rem">${proposals.length} proposal${proposals.length > 1 ? 's' : ''} — pick one:</div>`;
+      proposals.forEach((p, i) => {
+        const badgeClass = { reading: 'badge-reading', study: 'badge-study', challenge: 'badge-challenge' };
+        const lessonCount = (p.lessons || []).length;
+        html += `<div class="card" style="margin-bottom:0.75rem;border-color:var(--border)">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.4rem">
+            <span class="plan-type-badge ${badgeClass[p.type] || 'badge-study'}">${p.type}</span>
+            <span style="font-size:0.75rem;color:var(--txt-muted)">Proposal ${i + 1}</span>
+          </div>
+          <div style="font-family:Georgia,serif;font-size:1rem;margin-bottom:0.3rem">${p.title}</div>
+          ${p.description ? `<div style="font-size:0.85rem;color:var(--txt-muted);margin-bottom:0.4rem">${p.description}</div>` : ''}
+          ${p.books ? `<div style="font-size:0.8rem;color:var(--txt-muted)">Books: ${p.books.map(b => displayNameFull(b)).join(', ')}</div>` : ''}
+          ${p.daysNeeded ? (() => { const ed = new Date(); ed.setDate(ed.getDate() + p.daysNeeded); return `<div style="font-size:0.8rem;color:var(--txt-muted)">${p.daysNeeded} days (${fmtDate(new Date().toISOString())} &mdash; ${fmtDate(ed.toISOString())})</div>`; })() : ''}
+          ${lessonCount ? `<div style="font-size:0.8rem;color:var(--txt-muted)">${lessonCount} lessons</div>` : ''}
+          ${p.habit ? `<div style="font-size:0.8rem;color:var(--txt-muted)">Habit: ${p.habit} (${p.frequency || 'daily'})</div>` : ''}
+          ${lessonCount ? `<details style="margin-top:0.5rem"><summary style="font-size:0.8rem;color:var(--ac);cursor:pointer">Preview lessons</summary>
+            <div style="margin-top:0.5rem">${p.lessons.map((l, li) => `
+              <div style="padding:0.4rem 0;border-bottom:1px solid var(--border);font-size:0.8rem">
+                <div style="color:var(--ac)">${li+1}. ${l.passage}</div>
+                <div style="color:var(--txt-muted)">${l.question || ''}</div>
+                ${l.journal ? `<div style="color:var(--txt-muted);font-style:italic">Journal: ${l.journal}</div>` : ''}
+                ${l.prayer ? `<div style="color:var(--txt-muted);font-style:italic">Prayer: ${l.prayer}</div>` : ''}
+                ${l.memoryVerse ? `<div style="color:var(--txt-muted)">Memorize: ${l.memoryVerse}</div>` : ''}
+                ${l.challenge ? `<div style="color:var(--txt-muted)">Challenge: ${l.challenge}</div>` : ''}
+              </div>`).join('')}
+            </div>
+          </details>` : ''}
+          <button class="btn btn-outline ai-pick" data-pi="${i}" style="margin-top:0.75rem;width:100%">Use This Plan</button>
+        </div>`;
+      });
+      html += `<button class="btn btn-muted" id="aiRetry" style="width:100%">Regenerate</button>`;
+      resultEl.innerHTML = html;
+
+      // Pick a proposal
+      resultEl.querySelectorAll('.ai-pick').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const parsed = proposals[parseInt(btn.dataset.pi)];
+          const days = parsed.daysNeeded || 30;
+          const endDate = new Date(); endDate.setDate(endDate.getDate() + days);
+          const plan = {
+            id: uid(), type: parsed.type, title: parsed.title,
+            description: parsed.description || '',
+            status: 'active', createdDate: new Date().toISOString(),
+            accountability: 'med',
+            startDate: todayKey(),
+            endDate: dateKey(endDate.toISOString())
+          };
+
+          if (parsed.type === 'reading') {
+            const books = (parsed.books || []).filter(b => CONFIG.BOOKS.includes(b));
+            if (books.length === 0) { alert('No valid books found. Try manual creation.'); return; }
+            for (const b of books) { await fetchBook(b).catch(() => {}); }
+            plan.books = books;
+            plan.schedule = generateSchedule(books, plan.startDate, plan.endDate);
+          } else if (parsed.type === 'study') {
+            plan.topic = parsed.topic || parsed.title;
+            plan.lessons = (parsed.lessons || []).map(l => ({ ...l, done: false }));
+          } else {
+            plan.habit = parsed.habit || parsed.title;
+            plan.frequency = parsed.frequency || 'daily';
+            plan.linkedPassages = parsed.linkedPassages || [];
+            plan.logDates = [];
+          }
+
+          const plans = getPlans();
+          plans.push(plan);
+          savePlans(plans);
+          viewingPlanId = plan.id;
+          plansView = 'detail';
+          renderPlans();
+          updateBanner();
+        });
+      });
+
+      // Retry
+      document.getElementById('aiRetry').addEventListener('click', () => { resultEl.innerHTML = ''; });
+
+    } catch(e) {
+      resultEl.innerHTML = `<div class="card" style="text-align:center;padding:1.5rem">
+        <div style="font-family:Georgia,serif;color:var(--ac);margin-bottom:0.5rem">AI Not Available</div>
+        <p style="color:var(--txt-muted);font-size:0.9rem;line-height:1.6">Could not reach the AI. Check your connection in <strong>Settings</strong> (gear icon), or use the Manual tab.</p>
+      </div>`;
+    }
+  });
+}
+
+// ── Plan detail view ──
+function renderPlanDetail() {
+  const el = document.getElementById('tab-plans');
+  const plan = getPlan(viewingPlanId);
+  if (!plan) { plansView = 'list'; renderPlans(); return; }
+
+  const prog = getPlanProgress(plan);
+  const con = getPlanConsistency(plan);
+  const today = getTodayTask(plan);
+  const tk = todayKey();
+
+  // Calendar strip (last 7 days + today + next 7)
+  let stripHTML = '<div class="cal-strip">';
+  for (let i = -14; i <= 14; i++) {
+    const d = new Date(); d.setDate(d.getDate() + i);
+    const dk = dateKey(d.toISOString());
+    const dayNum = d.getDate();
+    const dayName = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getDay()];
+    let cls = '';
+    if (dk === tk) cls = 'today';
+    if (plan.type === 'reading' && plan.schedule) {
+      const entry = plan.schedule.find(s => s.date === dk);
+      if (entry && entry.done) cls += ' done';
+      else if (entry && dk < tk) cls += ' missed';
+    } else if (plan.type === 'challenge') {
+      if ((plan.logDates || []).includes(dk)) cls += ' done';
+      else if (dk < tk && dk >= dateKey(plan.createdDate)) cls += ' missed';
+    } else if (plan.type === 'study') {
+      // no calendar tracking for study
+    }
+    stripHTML += `<div class="cal-strip-day ${cls}"><div style="font-size:0.6rem">${dayName}</div>${dayNum}</div>`;
+  }
+  stripHTML += '</div>';
+
+  // Today's task
+  let todayHTML = '';
+  if (plan.status === 'active' && today) {
+    if (plan.type === 'reading') {
+      todayHTML = `<div class="plan-today-card">
+        <div style="font-size:0.75rem;color:var(--txt-muted);margin-bottom:0.3rem">TODAY'S READING</div>
+        <div style="font-family:Georgia,serif;font-size:1.1rem;margin-bottom:0.75rem">${today.reading}</div>
+        <div style="display:flex;gap:0.5rem">
+          <button class="btn" id="openInReader">Open in Reader</button>
+          <button class="btn btn-outline" id="markTodayDone">Mark Done</button>
+        </div>
+      </div>`;
+    } else if (plan.type === 'study') {
+      todayHTML = `<div class="plan-today-card">
+        <div style="font-size:0.75rem;color:var(--txt-muted);margin-bottom:0.3rem">NEXT LESSON</div>
+        <div style="font-family:Georgia,serif;font-size:1.05rem;margin-bottom:0.3rem">${today.passage}</div>
+        <div style="font-size:0.9rem;color:var(--txt-muted);margin-bottom:0.75rem;font-style:italic">${today.question || ''}</div>
+        <button class="btn btn-outline" id="markLessonDone">Mark Complete</button>
+      </div>`;
+    } else {
+      todayHTML = `<div class="plan-today-card">
+        <div style="font-size:0.75rem;color:var(--txt-muted);margin-bottom:0.3rem">TODAY'S CHALLENGE</div>
+        <div style="font-family:Georgia,serif;font-size:1.05rem;margin-bottom:0.75rem">${plan.habit}</div>
+        <button class="btn" id="logChallengeToday">I did it today</button>
+      </div>`;
+    }
+  } else if (plan.status === 'active' && prog.pct === 100) {
+    todayHTML = `<div class="plan-today-card" style="text-align:center;border-color:var(--status-green)">
+      <div style="font-size:1.5rem;margin-bottom:0.5rem">&#127881;</div>
+      <div style="font-family:Georgia,serif;color:var(--status-green)">Plan complete!</div>
+    </div>`;
+  }
+
+  // Upcoming (reading plans)
+  let upcomingHTML = '';
+  if (plan.type === 'reading' && plan.schedule) {
+    const upcoming = plan.schedule.filter(s => s.date > tk && !s.done).slice(0, 5);
+    if (upcoming.length) {
+      upcomingHTML = '<div style="margin-bottom:1rem"><div style="font-size:0.8rem;color:var(--txt-muted);margin-bottom:0.5rem">UPCOMING</div>';
+      upcoming.forEach(s => {
+        upcomingHTML += `<div style="display:flex;justify-content:space-between;padding:0.4rem 0;border-bottom:1px solid var(--border);font-size:0.85rem"><span>${s.reading}</span><span style="color:var(--txt-muted)">${fmtDate(s.date + 'T00:00:00')}</span></div>`;
+      });
+      upcomingHTML += '</div>';
+    }
+  }
+
+  // Study lessons list
+  let lessonsHTML = '';
+  if (plan.type === 'study' && plan.lessons && plan.lessons.length) {
+    lessonsHTML = '<div style="margin-bottom:1rem"><div style="font-size:0.8rem;color:var(--txt-muted);margin-bottom:0.5rem">LESSONS</div>';
+    plan.lessons.forEach((l, i) => {
+      lessonsHTML += `<div class="card" style="margin-bottom:0.5rem;opacity:${l.done ? 0.5 : 1}">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start">
+          <div style="flex:1">
+            <span style="color:var(--ac);font-family:Georgia,serif">${l.passage}</span>
+            ${l.question ? `<div style="font-size:0.85rem;color:var(--txt-muted);margin-top:0.2rem">${l.question}</div>` : ''}
+            ${l.journal ? `<div style="font-size:0.8rem;color:var(--txt-muted);margin-top:0.3rem;font-style:italic">&#128221; ${l.journal}</div>` : ''}
+            ${l.prayer ? `<div style="font-size:0.8rem;color:var(--txt-muted);margin-top:0.2rem">&#128591; ${l.prayer}</div>` : ''}
+            ${l.memoryVerse ? `<div style="font-size:0.8rem;color:var(--ac);margin-top:0.2rem">&#128278; Memorize: ${l.memoryVerse}</div>` : ''}
+            ${l.challenge ? `<div style="font-size:0.8rem;color:var(--badge-orange);margin-top:0.2rem">&#9889; ${l.challenge}</div>` : ''}
+          </div>
+          <button class="btn btn-sm ${l.done ? 'btn-muted' : 'btn-outline'} toggle-lesson" data-li="${i}" style="flex-shrink:0;margin-left:0.5rem">${l.done ? 'Done' : 'Mark'}</button>
+        </div>
+      </div>`;
+    });
+    lessonsHTML += '</div>';
+  }
+
+  // Accountability coaching message
+  const acct = plan.accountability || 'med';
+  const acctLabels = { low: 'Low', med: 'Medium', high: 'High' };
+  let coachMsg = '';
+  if (plan.status === 'active' && con.pct < 100) {
+    const missed = con.total - con.done;
+    if (acct === 'high' && con.pct < 80) {
+      coachMsg = `<div class="card" style="border-color:var(--badge-orange);margin-bottom:1rem;padding:1rem">
+        <div style="font-size:0.75rem;text-transform:uppercase;color:var(--badge-orange);margin-bottom:0.3rem">Accountability Check</div>
+        <div style="font-size:0.9rem;line-height:1.5">You've missed <strong>${missed}</strong> of the last ${con.total} days (${con.pct}% consistent). You committed to this — what's getting in the way? Consider adjusting your schedule or recommitting today.</div>
+      </div>`;
+    } else if (acct === 'high' && con.pct < 95) {
+      coachMsg = `<div class="card" style="border-color:var(--ac);margin-bottom:1rem;padding:1rem">
+        <div style="font-size:0.75rem;text-transform:uppercase;color:var(--ac);margin-bottom:0.3rem">Gentle Nudge</div>
+        <div style="font-size:0.9rem;line-height:1.5">You've missed ${missed} day${missed > 1 ? 's' : ''} recently. You're close — stay consistent and finish strong.</div>
+      </div>`;
+    } else if (acct === 'med' && con.pct < 70) {
+      coachMsg = `<div class="card" style="border-color:var(--border);margin-bottom:1rem;padding:1rem">
+        <div style="font-size:0.9rem;color:var(--txt-muted);line-height:1.5">You're at ${con.pct}% consistency. It's okay to fall behind — what matters is getting back on track today.</div>
+      </div>`;
+    }
+  }
+
+  // Time remaining
+  let timeInfo = '';
+  if (plan.endDate) {
+    const end = new Date(plan.endDate + 'T00:00:00');
+    const now = new Date();
+    const daysLeft = Math.max(0, Math.ceil((end - now) / 86400000));
+    const remaining = prog.total - prog.done;
+    timeInfo = `<div style="font-size:0.8rem;color:var(--txt-muted);margin-bottom:1rem">${daysLeft} days left${remaining > 0 ? ` &middot; ${remaining} ${plan.type === 'challenge' ? 'days' : 'items'} remaining` : ''}</div>`;
+  }
+
+  el.innerHTML = `
+    <div class="drill-breadcrumb" style="margin-bottom:0.5rem">
+      <a id="backToPlans2">Plans</a> <span>&#8250;</span> <strong style="color:var(--txt)">${plan.title}</strong>
+    </div>
+    <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:1rem">
+      ${timeInfo}
+      <div style="margin-left:auto;display:flex;align-items:center;gap:0.4rem">
+        <span style="font-size:0.75rem;color:var(--txt-muted)">Accountability:</span>
+        <select id="acctLevel" style="font-size:0.75rem;padding:0.2rem 0.4rem">
+          <option value="low"${acct==='low'?' selected':''}>Low</option>
+          <option value="med"${acct==='med'?' selected':''}>Medium</option>
+          <option value="high"${acct==='high'?' selected':''}>High</option>
+        </select>
+      </div>
+    </div>
+    ${stripHTML}
+    ${coachMsg}
+    <div style="display:flex;gap:1rem;margin-bottom:1.25rem;flex-wrap:wrap">
+      <div class="stat-card" style="flex:1;min-width:100px"><div class="stat-num">${prog.pct}%</div><div class="stat-label">Progress</div></div>
+      <div class="stat-card" style="flex:1;min-width:100px"><div class="stat-num">${con.pct}%</div><div class="stat-label">Consistency</div></div>
+      <div class="stat-card" style="flex:1;min-width:100px"><div class="stat-num">${prog.done}/${prog.total}</div><div class="stat-label">${plan.type === 'challenge' ? 'Days' : 'Done'}</div></div>
+    </div>
+    ${todayHTML}
+    ${upcomingHTML}
+    ${lessonsHTML}
+    <hr class="gold-rule">
+    <div style="display:flex;gap:0.5rem;flex-wrap:wrap">
+      <button class="btn btn-outline" id="editPlan">Edit Plan</button>
+      ${plan.status === 'active' && prog.pct === 100 ? `<button class="btn btn-outline" id="completePlan">Mark Completed</button>` : ''}
+      ${plan.status === 'active' ? `<button class="btn btn-muted" id="archivePlan">Archive</button>` : ''}
+      <button class="btn btn-muted" id="deletePlan" style="margin-left:auto;color:var(--badge-orange)">Delete</button>
+    </div>`;
+
+  // Events
+  document.getElementById('backToPlans2').addEventListener('click', () => {
+    plansView = 'list'; renderPlans();
+  });
+
+  // Accountability level change
+  document.getElementById('acctLevel').addEventListener('change', function() {
+    updatePlan(viewingPlanId, { accountability: this.value });
+  });
+
+  // Open in Reader
+  const readerBtn = document.getElementById('openInReader');
+  if (readerBtn && today) {
+    readerBtn.addEventListener('click', () => {
+      if (today.items && today.items.length) {
+        goToReader(today.items[0].book, today.items[0].chapter);
+      } else if (today.passage) {
+        goToPassage(today.passage);
+      }
+    });
+  }
+
+  // Mark today done (reading)
+  const markBtn = document.getElementById('markTodayDone');
+  if (markBtn) {
+    markBtn.addEventListener('click', () => {
+      const plans = getPlans();
+      const p = plans.find(x => x.id === viewingPlanId);
+      if (p && p.schedule) {
+        const entry = p.schedule.find(s => s.date === tk && !s.done);
+        if (entry) entry.done = true;
+      }
+      savePlans(plans);
+      renderPlanDetail();
+      updateBanner();
+    });
+  }
+
+  // Mark lesson done (study)
+  el.querySelectorAll('.toggle-lesson').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const li = parseInt(btn.dataset.li);
+      const plans = getPlans();
+      const p = plans.find(x => x.id === viewingPlanId);
+      if (p && p.lessons && p.lessons[li] !== undefined) {
+        p.lessons[li].done = !p.lessons[li].done;
+      }
+      savePlans(plans);
+      renderPlanDetail();
+    });
+  });
+
+  // Mark lesson done (study) — next lesson button
+  const lessonDoneBtn = document.getElementById('markLessonDone');
+  if (lessonDoneBtn) {
+    lessonDoneBtn.addEventListener('click', () => {
+      const plans = getPlans();
+      const p = plans.find(x => x.id === viewingPlanId);
+      if (p && p.lessons) {
+        const next = p.lessons.find(l => !l.done);
+        if (next) next.done = true;
+      }
+      savePlans(plans);
+      renderPlanDetail();
+    });
+  }
+
+  // Log challenge today
+  const logBtn = document.getElementById('logChallengeToday');
+  if (logBtn) {
+    logBtn.addEventListener('click', () => {
+      const plans = getPlans();
+      const p = plans.find(x => x.id === viewingPlanId);
+      if (p) {
+        if (!p.logDates) p.logDates = [];
+        if (!p.logDates.includes(tk)) p.logDates.push(tk);
+      }
+      savePlans(plans);
+      renderPlanDetail();
+      updateBanner();
+    });
+  }
+
+  // Complete / Archive / Delete
+  const completeBtn = document.getElementById('completePlan');
+  if (completeBtn) completeBtn.addEventListener('click', () => {
+    updatePlan(viewingPlanId, { status: 'completed' });
+    renderPlanDetail(); updateBanner();
+  });
+  const archiveBtn = document.getElementById('archivePlan');
+  if (archiveBtn) archiveBtn.addEventListener('click', () => {
+    updatePlan(viewingPlanId, { status: 'archived' });
+    plansView = 'list'; renderPlans(); updateBanner();
+  });
+  document.getElementById('deletePlan').addEventListener('click', () => {
+    if (!confirm('Delete this plan permanently?')) return;
+    let plans = getPlans();
+    plans = plans.filter(p => p.id !== viewingPlanId);
+    savePlans(plans);
+    plansView = 'list'; renderPlans(); updateBanner();
+  });
+
+  // Edit plan
+  document.getElementById('editPlan').addEventListener('click', () => {
+    plansView = 'edit'; renderPlans();
+  });
+}
+
+// ── Plan edit view ──
+function renderPlanEdit() {
+  const el = document.getElementById('tab-plans');
+  const plan = getPlan(viewingPlanId);
+  if (!plan) { plansView = 'list'; renderPlans(); return; }
+
+  const bookOpts = CONFIG.BOOKS.map(b => {
+    const sel = (plan.books || []).includes(b) ? ' selected' : '';
+    return `<option value="${b}"${sel}>${displayNameFull(b)}</option>`;
+  }).join('');
+
+  let typeFields = '';
+  if (plan.type === 'reading') {
+    typeFields = `
+      <div style="margin-bottom:0.75rem">
+        <label style="font-size:0.8rem;color:var(--txt-muted);display:block;margin-bottom:0.25rem">Books</label>
+        <select id="epBooks" multiple size="6" style="width:100%">${bookOpts}</select>
+      </div>
+      <div style="display:flex;gap:0.75rem;margin-bottom:0.75rem">
+        <div style="flex:1"><label style="font-size:0.8rem;color:var(--txt-muted);display:block;margin-bottom:0.25rem">Start</label>
+          <input type="date" id="epStart" value="${plan.startDate || ''}" style="width:100%"></div>
+        <div style="flex:1"><label style="font-size:0.8rem;color:var(--txt-muted);display:block;margin-bottom:0.25rem">End</label>
+          <input type="date" id="epEnd" value="${plan.endDate || ''}" style="width:100%"></div>
+      </div>
+      <label style="display:flex;align-items:center;gap:0.6rem;cursor:pointer;font-size:0.85rem;margin-bottom:0.75rem;color:var(--txt-muted)">
+        <input type="checkbox" id="epReschedule" checked>
+        Regenerate daily schedule from new dates
+      </label>`;
+  } else if (plan.type === 'study') {
+    typeFields = `
+      <div style="margin-bottom:0.75rem">
+        <label style="font-size:0.8rem;color:var(--txt-muted);display:block;margin-bottom:0.25rem">Topic</label>
+        <textarea id="epTopic" rows="2" style="width:100%">${plan.topic || ''}</textarea>
+      </div>
+      <div style="display:flex;gap:0.75rem;margin-bottom:0.75rem">
+        <div style="flex:1"><label style="font-size:0.8rem;color:var(--txt-muted);display:block;margin-bottom:0.25rem">Start</label>
+          <input type="date" id="epStart" value="${plan.startDate || ''}" style="width:100%"></div>
+        <div style="flex:1"><label style="font-size:0.8rem;color:var(--txt-muted);display:block;margin-bottom:0.25rem">End</label>
+          <input type="date" id="epEnd" value="${plan.endDate || ''}" style="width:100%"></div>
+      </div>`;
+  } else {
+    typeFields = `
+      <div style="margin-bottom:0.75rem">
+        <label style="font-size:0.8rem;color:var(--txt-muted);display:block;margin-bottom:0.25rem">Habit</label>
+        <input type="text" id="epHabit" value="${plan.habit || ''}" style="width:100%">
+      </div>
+      <div style="display:flex;gap:0.75rem;margin-bottom:0.75rem">
+        <div style="flex:1"><label style="font-size:0.8rem;color:var(--txt-muted);display:block;margin-bottom:0.25rem">Frequency</label>
+          <select id="epFreq"><option value="daily"${plan.frequency==='daily'?' selected':''}>Daily</option><option value="weekly"${plan.frequency==='weekly'?' selected':''}>Weekly</option></select></div>
+        <div style="flex:1"><label style="font-size:0.8rem;color:var(--txt-muted);display:block;margin-bottom:0.25rem">Linked passage</label>
+          <input type="text" id="epPassage" value="${(plan.linkedPassages||[])[0]||''}" style="width:100%"></div>
+      </div>`;
+  }
+
+  el.innerHTML = `
+    <div class="drill-breadcrumb" style="margin-bottom:1rem">
+      <a id="epBack">Plans</a> <span>&#8250;</span> <a id="epBackDetail">${plan.title}</a> <span>&#8250;</span> <strong style="color:var(--txt)">Edit</strong>
+    </div>
+    <div class="card">
+      <div style="margin-bottom:0.75rem">
+        <label style="font-size:0.8rem;color:var(--txt-muted);display:block;margin-bottom:0.25rem">Title</label>
+        <input type="text" id="epTitle" value="${plan.title}" style="width:100%">
+      </div>
+      <div style="margin-bottom:0.75rem">
+        <label style="font-size:0.8rem;color:var(--txt-muted);display:block;margin-bottom:0.25rem">Description</label>
+        <input type="text" id="epDesc" value="${plan.description || ''}" style="width:100%">
+      </div>
+      ${typeFields}
+      <div style="margin-bottom:0.75rem">
+        <label style="font-size:0.8rem;color:var(--txt-muted);display:block;margin-bottom:0.25rem">Accountability</label>
+        <select id="epAcct">
+          <option value="low"${(plan.accountability||'med')==='low'?' selected':''}>Low</option>
+          <option value="med"${(plan.accountability||'med')==='med'?' selected':''}>Medium</option>
+          <option value="high"${(plan.accountability||'med')==='high'?' selected':''}>High</option>
+        </select>
+      </div>
+      <div style="margin-bottom:0.75rem">
+        <label style="font-size:0.8rem;color:var(--txt-muted);display:block;margin-bottom:0.25rem">Status</label>
+        <select id="epStatus">
+          <option value="active"${plan.status==='active'?' selected':''}>Active</option>
+          <option value="completed"${plan.status==='completed'?' selected':''}>Completed</option>
+          <option value="archived"${plan.status==='archived'?' selected':''}>Archived</option>
+        </select>
+      </div>
+      <button class="btn" id="epSave" style="width:100%">Save Changes</button>
+    </div>`;
+
+  document.getElementById('epBack').addEventListener('click', () => { plansView = 'list'; renderPlans(); });
+  document.getElementById('epBackDetail').addEventListener('click', () => { plansView = 'detail'; renderPlans(); });
+
+  document.getElementById('epSave').addEventListener('click', async () => {
+    const updates = {
+      title: document.getElementById('epTitle').value.trim(),
+      description: document.getElementById('epDesc').value.trim(),
+      accountability: document.getElementById('epAcct').value,
+      status: document.getElementById('epStatus').value
+    };
+
+    if (plan.type === 'reading') {
+      const newBooks = Array.from(document.getElementById('epBooks').selectedOptions).map(o => o.value);
+      const newStart = document.getElementById('epStart').value;
+      const newEnd = document.getElementById('epEnd').value;
+      const reschedule = document.getElementById('epReschedule').checked;
+      updates.books = newBooks;
+      updates.startDate = newStart;
+      updates.endDate = newEnd;
+      if (reschedule && newBooks.length && newEnd) {
+        for (const b of newBooks) { await fetchBook(b).catch(() => {}); }
+        updates.schedule = generateSchedule(newBooks, newStart, newEnd);
+      }
+    } else if (plan.type === 'study') {
+      updates.topic = document.getElementById('epTopic').value.trim();
+      updates.startDate = document.getElementById('epStart').value;
+      updates.endDate = document.getElementById('epEnd').value;
+    } else {
+      updates.habit = document.getElementById('epHabit').value.trim();
+      updates.frequency = document.getElementById('epFreq').value;
+      const passage = document.getElementById('epPassage').value.trim();
+      updates.linkedPassages = passage ? [passage] : [];
+    }
+
+    updatePlan(viewingPlanId, updates);
+    plansView = 'detail';
+    renderPlans();
+    updateBanner();
+  });
+}
+
+// ── Notification banner ──
+let bannerDismissed = false;
+
+function updateBanner() {
+  if (bannerDismissed) return;
+  const banner = document.getElementById('planBanner');
+  const textEl = document.getElementById('bannerText');
+  if (!banner) return;
+
+  const plans = getPlans().filter(p => p.status === 'active');
+  let todayTask = null, todayPlan = null;
+  for (const p of plans) {
+    const t = getTodayTask(p);
+    if (t) { todayTask = t; todayPlan = p; break; }
+  }
+
+  if (todayTask && todayPlan) {
+    let msg = '';
+    if (todayPlan.type === 'reading') msg = `Today: ${todayTask.reading}`;
+    else if (todayPlan.type === 'study') msg = `Next: ${todayTask.passage}`;
+    else msg = `Today: ${todayPlan.habit}`;
+    textEl.textContent = msg;
+    banner.classList.add('show');
+  } else {
+    banner.classList.remove('show');
+  }
+}
+
+// Navigate to a specific book+chapter in the Reader, works from any tab
+function goToReader(book, chapter) {
+  currentBook = book;
+  currentChapter = chapter;
+  readInitialized = false;
+  if (activeTab === 'read') {
+    // Already on read tab — force re-render
+    renderRead();
+  } else {
+    switchTab('read');
+  }
+}
+
+// Try to parse a passage string like "Proverbs 31:10-31" or "James 4:8-11" and navigate
+function goToPassage(passageStr) {
+  const m = passageStr.match(/^(\d?\s?[A-Za-z]+(?:\s?of\s?[A-Za-z]+)?)\s+(\d+)/);
+  if (!m) return false;
+  const bookSearch = m[1].replace(/\s/g, '');
+  const found = CONFIG.BOOKS.find(b => b.toLowerCase() === bookSearch.toLowerCase());
+  if (!found) return false;
+  goToReader(found, parseInt(m[2]));
+  return true;
+}
+
+document.getElementById('bannerOpen').addEventListener('click', () => {
+  const plans = getPlans().filter(p => p.status === 'active');
+  for (const p of plans) {
+    const t = getTodayTask(p);
+    if (t) {
+      if (p.type === 'reading' && t.items && t.items.length) {
+        goToReader(t.items[0].book, t.items[0].chapter);
+      } else if (p.type === 'study' && t.passage) {
+        if (!goToPassage(t.passage)) { viewingPlanId = p.id; plansView = 'detail'; switchTab('plans'); }
+      } else {
+        viewingPlanId = p.id; plansView = 'detail'; switchTab('plans');
+      }
+      return;
+    }
+  }
+});
+document.getElementById('bannerDismiss').addEventListener('click', () => {
+  bannerDismissed = true;
+  document.getElementById('planBanner').classList.remove('show');
+});
+
+// ═══════════════════════════════════════════════
+// NOTES TAB
+// ═══════════════════════════════════════════════
+let notesSubTab = 'verse';
+
+function renderNotes() {
+  const el = document.getElementById('tab-notes');
+  el.innerHTML = `
+    <div class="sub-tabs">
+      <button class="sub-tab-btn${notesSubTab==='verse'?' active':''}" data-sub="verse">Verse Notes</button>
+      <button class="sub-tab-btn${notesSubTab==='journal'?' active':''}" data-sub="journal">Journal</button>
+      <button class="sub-tab-btn${notesSubTab==='thoughts'?' active':''}" data-sub="thoughts">Random Thoughts</button>
+    </div>
+    <div id="notesContent"></div>`;
+  el.querySelectorAll('.sub-tab-btn').forEach(b => {
+    b.addEventListener('click', () => { notesSubTab = b.dataset.sub; renderNotes(); });
+  });
+  if (notesSubTab === 'verse') renderVerseNotes();
+  else if (notesSubTab === 'journal') renderJournal();
+  else renderThoughts();
+}
+
+function renderVerseNotes() {
+  const el = document.getElementById('notesContent');
+  const notes = lsGet('verse_notes', {});
+  // Extract note entries (skip _date keys)
+  const entries = [];
+  Object.keys(notes).forEach(k => {
+    if (k.endsWith('_date')) return;
+    const parts = k.split('_');
+    if (parts.length >= 3) {
+      entries.push({ key: k, book: parts[0], chapter: parts[1], verse: parts[2], text: notes[k], date: notes[k + '_date'] || '' });
+    }
+  });
+  entries.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+
+  let html = '<input type="text" id="vnSearch" placeholder="Search verse notes..." style="width:100%;margin-bottom:1rem">';
+  if (entries.length === 0) {
+    html += '<div class="empty-state"><div class="empty-icon">&#128221;</div><p>No verse notes yet. Open any chapter, hover over a verse, and click the pencil icon to add a note.</p></div>';
+  } else {
+    html += '<div id="vnList">';
+    entries.forEach(e => {
+      html += `<div class="card" style="margin-bottom:0.75rem" data-vnkey="${e.key}">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.3rem">
+          <span style="color:var(--ac);font-family:Georgia,serif;cursor:pointer" class="vn-ref" data-book="${e.book}" data-ch="${e.chapter}" data-v="${e.verse}">${displayNameFull(e.book)} ${e.chapter}:${e.verse}</span>
+          <span style="font-size:0.75rem;color:var(--txt-muted)">${fmtDate(e.date)}</span>
+        </div>
+        <div class="vn-preview" style="font-size:0.9rem;color:var(--txt-muted);line-height:1.5">${e.text.length > 150 ? e.text.slice(0,150) + '...' : e.text}</div>
+        <div class="vn-edit" style="display:none;margin-top:0.5rem">
+          <textarea style="width:100%">${e.text}</textarea>
+          <div style="display:flex;gap:0.5rem;margin-top:0.5rem">
+            <button class="btn btn-sm vn-save" data-key="${e.key}">Save</button>
+            <button class="btn btn-sm btn-muted vn-cancel">Cancel</button>
+            <button class="btn btn-sm btn-muted vn-delete" data-key="${e.key}" style="margin-left:auto;color:var(--badge-orange)">Delete</button>
+          </div>
+        </div>
+      </div>`;
+    });
+    html += '</div>';
+  }
+  el.innerHTML = html;
+
+  // Click to expand/edit
+  el.querySelectorAll('.vn-preview').forEach(pre => {
+    pre.style.cursor = 'pointer';
+    pre.addEventListener('click', () => {
+      const card = pre.closest('.card');
+      pre.style.display = 'none';
+      card.querySelector('.vn-edit').style.display = 'block';
+    });
+  });
+  el.querySelectorAll('.vn-cancel').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const card = btn.closest('.card');
+      card.querySelector('.vn-preview').style.display = '';
+      card.querySelector('.vn-edit').style.display = 'none';
+    });
+  });
+  el.querySelectorAll('.vn-save').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const key = btn.dataset.key;
+      const text = btn.closest('.vn-edit').querySelector('textarea').value;
+      const notes = lsGet('verse_notes', {});
+      notes[key] = text;
+      notes[key + '_date'] = new Date().toISOString();
+      lsSet('verse_notes', notes);
+      renderVerseNotes();
+    });
+  });
+  el.querySelectorAll('.vn-delete').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (!confirm('Delete this note?')) return;
+      const key = btn.dataset.key;
+      const notes = lsGet('verse_notes', {});
+      delete notes[key];
+      delete notes[key + '_date'];
+      lsSet('verse_notes', notes);
+      renderVerseNotes();
+    });
+  });
+  // Click reference to navigate
+  el.querySelectorAll('.vn-ref').forEach(ref => {
+    ref.addEventListener('click', () => {
+      currentBook = ref.dataset.book;
+      currentChapter = parseInt(ref.dataset.ch);
+      readInitialized = false;
+      switchTab('read');
+    });
+  });
+  // Search
+  const searchInput = document.getElementById('vnSearch');
+  if (searchInput) {
+    searchInput.addEventListener('input', debounce(() => {
+      const q = searchInput.value.toLowerCase();
+      el.querySelectorAll('.card[data-vnkey]').forEach(card => {
+        const text = card.textContent.toLowerCase();
+        card.style.display = text.includes(q) ? '' : 'none';
+      });
+    }, 300));
+  }
+}
+
+function renderJournal() {
+  const el = document.getElementById('notesContent');
+  const journal = lsGet('journal', []);
+  const moods = ['Peaceful','Convicted','Confused','Grateful','Challenged','Curious'];
+  const moodIcons = {'Peaceful':'&#9774;','Convicted':'&#9889;','Confused':'?','Grateful':'&#9829;','Challenged':'&#9873;','Curious':'&#9733;'};
+
+  let html = `
+    <div class="card" style="margin-bottom:1.25rem">
+      <div style="font-size:0.85rem;color:var(--txt-muted);margin-bottom:0.5rem">New Journal Entry</div>
+      <input type="text" id="jRef" placeholder="Passage reference (e.g. John 3:16)" style="width:100%;margin-bottom:0.5rem">
+      <textarea id="jText" placeholder="What stood out to you? What is God saying?" rows="4" style="width:100%;margin-bottom:0.5rem"></textarea>
+      <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:0.5rem">
+        <span style="font-size:0.8rem;color:var(--txt-muted);align-self:center">Mood:</span>
+        ${moods.map(m => `<button class="btn btn-sm btn-muted mood-btn" data-mood="${m}">${m}</button>`).join('')}
+      </div>
+      <input type="text" id="jTags" placeholder="Tags (comma separated)" style="width:100%;margin-bottom:0.5rem">
+      <button class="btn" id="jSave">Save Entry</button>
+    </div>
+    <div style="display:flex;gap:0.5rem;margin-bottom:1rem;flex-wrap:wrap">
+      <select id="jFilterMood" style="font-size:0.8rem"><option value="">All moods</option>${moods.map(m => `<option value="${m}">${m}</option>`).join('')}</select>
+      <input type="text" id="jFilterTag" placeholder="Filter by tag" style="font-size:0.8rem;max-width:150px">
+    </div>
+    <div id="jList"></div>`;
+  el.innerHTML = html;
+
+  let selectedMood = '';
+  el.querySelectorAll('.mood-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      el.querySelectorAll('.mood-btn').forEach(b => b.classList.remove('active'));
+      if (selectedMood === btn.dataset.mood) { selectedMood = ''; }
+      else { selectedMood = btn.dataset.mood; btn.classList.add('active'); btn.style.borderColor = 'var(--ac)'; btn.style.color = 'var(--ac)'; }
+    });
+  });
+
+  document.getElementById('jSave').addEventListener('click', () => {
+    const text = document.getElementById('jText').value.trim();
+    if (!text) return;
+    const entry = {
+      id: uid(),
+      ref: document.getElementById('jRef').value.trim(),
+      text,
+      mood: selectedMood,
+      tags: document.getElementById('jTags').value.split(',').map(t => t.trim()).filter(Boolean),
+      date: new Date().toISOString()
+    };
+    const j = lsGet('journal', []);
+    j.push(entry);
+    lsSet('journal', j);
+    renderJournal();
+  });
+
+  function renderJournalList() {
+    const list = document.getElementById('jList');
+    let entries = lsGet('journal', []).slice().reverse();
+    const fMood = document.getElementById('jFilterMood').value;
+    const fTag = document.getElementById('jFilterTag').value.toLowerCase().trim();
+    if (fMood) entries = entries.filter(e => e.mood === fMood);
+    if (fTag) entries = entries.filter(e => e.tags && e.tags.some(t => t.toLowerCase().includes(fTag)));
+
+    if (entries.length === 0) {
+      list.innerHTML = '<div class="empty-state"><div class="empty-icon">&#128216;</div><p>No journal entries yet. Capture what God is showing you in your daily reading.</p></div>';
+      return;
+    }
+    list.innerHTML = entries.map(e => `
+      <div class="card" style="margin-bottom:0.75rem;cursor:pointer" data-jid="${e.id}">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.3rem">
+          <span style="color:var(--ac);font-family:Georgia,serif">${e.ref || 'General'}</span>
+          <span style="font-size:0.75rem;color:var(--txt-muted)">${fmtDate(e.date)}</span>
+        </div>
+        ${e.mood ? `<span class="mood-chip">${moodIcons[e.mood]||''} ${e.mood}</span>` : ''}
+        <div class="j-preview" style="font-size:0.9rem;color:var(--txt-muted);line-height:1.5;margin-top:0.4rem">${e.text.length > 120 ? e.text.slice(0,120) + '...' : e.text}</div>
+        <div class="j-full" style="display:none;margin-top:0.4rem">
+          <div style="font-size:0.9rem;line-height:1.6;white-space:pre-wrap">${e.text}</div>
+          ${e.tags && e.tags.length ? `<div style="margin-top:0.5rem;display:flex;gap:0.3rem;flex-wrap:wrap">${e.tags.map(t => `<span style="font-size:0.7rem;color:var(--ac);border:1px solid var(--border);padding:0.1rem 0.4rem;border-radius:3px">${t}</span>`).join('')}</div>` : ''}
+          <div style="margin-top:0.5rem"><button class="btn btn-sm btn-muted j-delete" data-jid="${e.id}">Delete</button></div>
+        </div>
+      </div>`).join('');
+
+    list.querySelectorAll('.card[data-jid]').forEach(card => {
+      card.addEventListener('click', (ev) => {
+        if (ev.target.closest('.j-delete')) return;
+        const pre = card.querySelector('.j-preview');
+        const full = card.querySelector('.j-full');
+        if (full.style.display === 'none') { pre.style.display = 'none'; full.style.display = 'block'; }
+        else { pre.style.display = ''; full.style.display = 'none'; }
+      });
+    });
+    list.querySelectorAll('.j-delete').forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (!confirm('Delete this journal entry?')) return;
+        let j = lsGet('journal', []);
+        j = j.filter(e => e.id !== btn.dataset.jid);
+        lsSet('journal', j);
+        renderJournalList();
+      });
+    });
+  }
+  renderJournalList();
+  document.getElementById('jFilterMood').addEventListener('change', renderJournalList);
+  document.getElementById('jFilterTag').addEventListener('input', debounce(renderJournalList, 300));
+}
+
+function renderThoughts() {
+  const el = document.getElementById('notesContent');
+  const thoughts = lsGet('random_thoughts', []);
+
+  let html = `
+    <div style="display:flex;gap:0.5rem;margin-bottom:1.25rem">
+      <input type="text" id="rtText" placeholder="Quick thought..." style="flex:1">
+      <input type="text" id="rtRef" placeholder="Passage (opt)" style="width:120px">
+      <button class="btn" id="rtSave">Capture</button>
+    </div>
+    <div id="rtList"></div>`;
+  el.innerHTML = html;
+
+  document.getElementById('rtSave').addEventListener('click', saveThought);
+  document.getElementById('rtText').addEventListener('keydown', e => { if (e.key === 'Enter') saveThought(); });
+
+  function saveThought() {
+    const text = document.getElementById('rtText').value.trim();
+    if (!text) return;
+    const ts = lsGet('random_thoughts', []);
+    ts.push({ id: uid(), text, reference: document.getElementById('rtRef').value.trim(), timestamp: new Date().toISOString() });
+    lsSet('random_thoughts', ts);
+    document.getElementById('rtText').value = '';
+    document.getElementById('rtRef').value = '';
+    renderThoughtList();
+  }
+
+  function renderThoughtList() {
+    const list = document.getElementById('rtList');
+    const ts = lsGet('random_thoughts', []).slice().reverse();
+    if (ts.length === 0) {
+      list.innerHTML = '<div class="empty-state"><div class="empty-icon">&#128161;</div><p>Capture fleeting thoughts and insights as they come. They feed into your AI reflections.</p></div>';
+      return;
+    }
+    list.innerHTML = ts.map(t => `
+      <div class="card" style="margin-bottom:0.75rem">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.3rem">
+          ${t.reference ? `<span style="color:var(--ac);font-family:Georgia,serif;cursor:pointer" class="rt-ref">${t.reference}</span>` : '<span></span>'}
+          <span style="font-size:0.75rem;color:var(--txt-muted)">${fmtDate(t.timestamp)}</span>
+        </div>
+        <div style="font-size:0.9rem;line-height:1.5">${t.text}</div>
+        <button class="btn btn-sm btn-muted rt-del" data-id="${t.id}" style="margin-top:0.5rem;font-size:0.75rem">Remove</button>
+      </div>`).join('');
+
+    list.querySelectorAll('.rt-del').forEach(btn => {
+      btn.addEventListener('click', () => {
+        let ts = lsGet('random_thoughts', []);
+        ts = ts.filter(t => t.id !== btn.dataset.id);
+        lsSet('random_thoughts', ts);
+        renderThoughtList();
+      });
+    });
+  }
+  renderThoughtList();
+}
+
+// ═══════════════════════════════════════════════
+// PRAY TAB
+// ═══════════════════════════════════════════════
+function renderPray() {
+  const el = document.getElementById('tab-pray');
+  const prayers = lsGet('prayers', []);
+  const categories = ['Personal','Family','Others','Community','Praise'];
+  const statusList = ['Active','Answered','Ongoing'];
+
+  // Stats
+  const total = prayers.length;
+  const answered = prayers.filter(p => p.status === 'Answered').length;
+
+  let html = `
+    <div class="card" style="margin-bottom:1.25rem">
+      <div style="font-size:0.85rem;color:var(--txt-muted);margin-bottom:0.5rem">New Prayer Request</div>
+      <input type="text" id="prTitle" placeholder="Prayer title" style="width:100%;margin-bottom:0.5rem">
+      <textarea id="prDesc" placeholder="Description" rows="2" style="width:100%;margin-bottom:0.5rem"></textarea>
+      <div style="display:flex;gap:0.5rem;margin-bottom:0.5rem;flex-wrap:wrap">
+        <input type="text" id="prPassage" placeholder="Linked passage (opt)" style="flex:1;min-width:120px">
+        <select id="prCat" style="min-width:120px">${categories.map(c => `<option value="${c}">${c}</option>`).join('')}</select>
+      </div>
+      <button class="btn" id="prSave">Add Prayer</button>
+    </div>
+    <div style="display:flex;gap:1rem;margin-bottom:1rem;flex-wrap:wrap;align-items:center">
+      <div style="font-size:0.85rem;color:var(--txt-muted)">Total: <strong style="color:var(--txt)">${total}</strong></div>
+      <div style="font-size:0.85rem;color:var(--txt-muted)">Answered: <strong style="color:var(--status-green)">${answered}</strong></div>
+      <div style="margin-left:auto;display:flex;gap:0.5rem">
+        <select id="prFilterCat" style="font-size:0.8rem"><option value="">All categories</option>${categories.map(c => `<option value="${c}">${c}</option>`).join('')}</select>
+        <select id="prFilterStatus" style="font-size:0.8rem"><option value="">All statuses</option>${statusList.map(s => `<option value="${s}">${s}</option>`).join('')}</select>
+      </div>
+    </div>
+    <div id="prList"></div>
+    <hr class="gold-rule">
+    <div class="section-title">Praise Wall</div>
+    <div id="praiseWall"></div>`;
+  el.innerHTML = html;
+
+  document.getElementById('prSave').addEventListener('click', () => {
+    const title = document.getElementById('prTitle').value.trim();
+    if (!title) return;
+    const p = lsGet('prayers', []);
+    p.push({
+      id: uid(),
+      title,
+      desc: document.getElementById('prDesc').value.trim(),
+      passage: document.getElementById('prPassage').value.trim(),
+      category: document.getElementById('prCat').value,
+      status: 'Active',
+      answerNote: '',
+      prayedDates: [],
+      date: new Date().toISOString()
+    });
+    lsSet('prayers', p);
+    renderPray();
+  });
+
+  function renderPrayerList() {
+    const list = document.getElementById('prList');
+    let items = lsGet('prayers', []).slice().reverse();
+    const fCat = document.getElementById('prFilterCat').value;
+    const fStatus = document.getElementById('prFilterStatus').value;
+    if (fCat) items = items.filter(p => p.category === fCat);
+    if (fStatus) items = items.filter(p => p.status === fStatus);
+
+    if (items.length === 0) {
+      list.innerHTML = '<div class="empty-state"><div class="empty-icon">&#128591;</div><p>No prayer requests yet. Bring your requests before God and watch Him work.</p></div>';
+    } else {
+      list.innerHTML = items.map(p => {
+        const prayedCount = (p.prayedDates || []).length;
+        const prayedToday = (p.prayedDates || []).some(d => dateKey(d) === todayKey());
+        return `
+          <div class="prayer-card${p.status === 'Answered' ? ' answered' : ''}">
+            <div class="prayer-cat">${p.category}</div>
+            <div class="prayer-title">${p.title}</div>
+            ${p.desc ? `<div class="prayer-desc">${p.desc}</div>` : ''}
+            ${p.passage ? `<div style="font-size:0.8rem;color:var(--ac);margin-bottom:0.4rem">${p.passage}</div>` : ''}
+            ${p.status === 'Answered' && p.answerNote ? `<div style="font-size:0.85rem;color:var(--ac-light);line-height:1.5;margin-bottom:0.5rem;font-style:italic">"${p.answerNote}"</div>` : ''}
+            <div class="prayer-meta">
+              <span class="prayer-status" data-s="${p.status}" data-pid="${p.id}">${p.status}</span>
+              ${p.status !== 'Answered' ? `<button class="btn btn-sm ${prayedToday ? 'btn-muted' : 'btn-outline'} pr-prayed" data-pid="${p.id}">${prayedToday ? 'Prayed today' : 'Prayed today?'}</button>` : ''}
+              <span style="font-size:0.75rem;color:var(--txt-muted)">Prayed ${prayedCount}x</span>
+              <span style="font-size:0.75rem;color:var(--txt-muted)">${fmtDate(p.date)}</span>
+              <button class="btn btn-sm btn-muted pr-del" data-pid="${p.id}" style="margin-left:auto;font-size:0.7rem">Remove</button>
+            </div>
+            ${p.status === 'Answered' ? '' : `<div class="pr-answer-form" data-pid="${p.id}" style="display:none;margin-top:0.5rem"><textarea placeholder="How was this prayer answered?" rows="2" style="width:100%;margin-bottom:0.5rem"></textarea><button class="btn btn-sm pr-answer-save" data-pid="${p.id}">Save Answer</button></div>`}
+          </div>`;
+      }).join('');
+
+      // Status cycling
+      list.querySelectorAll('.prayer-status').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const pid = btn.dataset.pid;
+          let p = lsGet('prayers', []);
+          const prayer = p.find(x => x.id === pid);
+          if (!prayer) return;
+          const next = {'Active':'Ongoing','Ongoing':'Answered','Answered':'Active'};
+          prayer.status = next[prayer.status] || 'Active';
+          if (prayer.status === 'Answered') {
+            // Show answer form
+            const form = list.querySelector(`.pr-answer-form[data-pid="${pid}"]`);
+            if (form) form.style.display = 'block';
+          }
+          lsSet('prayers', p);
+          renderPrayerList();
+          renderPraiseWall();
+        });
+      });
+
+      // Prayed today
+      list.querySelectorAll('.pr-prayed').forEach(btn => {
+        btn.addEventListener('click', () => {
+          let p = lsGet('prayers', []);
+          const prayer = p.find(x => x.id === btn.dataset.pid);
+          if (!prayer) return;
+          if (!prayer.prayedDates) prayer.prayedDates = [];
+          if (!prayer.prayedDates.some(d => dateKey(d) === todayKey())) {
+            prayer.prayedDates.push(new Date().toISOString());
+          }
+          lsSet('prayers', p);
+          renderPrayerList();
+        });
+      });
+
+      // Answer save
+      list.querySelectorAll('.pr-answer-save').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const pid = btn.dataset.pid;
+          const text = btn.parentElement.querySelector('textarea').value.trim();
+          let p = lsGet('prayers', []);
+          const prayer = p.find(x => x.id === pid);
+          if (prayer) { prayer.answerNote = text; prayer.status = 'Answered'; }
+          lsSet('prayers', p);
+          renderPrayerList();
+          renderPraiseWall();
+        });
+      });
+
+      // Delete
+      list.querySelectorAll('.pr-del').forEach(btn => {
+        btn.addEventListener('click', () => {
+          if (!confirm('Remove this prayer?')) return;
+          let p = lsGet('prayers', []);
+          p = p.filter(x => x.id !== btn.dataset.pid);
+          lsSet('prayers', p);
+          renderPrayerList();
+          renderPraiseWall();
+        });
+      });
+    }
+  }
+
+  function renderPraiseWall() {
+    const wall = document.getElementById('praiseWall');
+    const answered = lsGet('prayers', []).filter(p => p.status === 'Answered');
+    if (answered.length === 0) {
+      wall.innerHTML = '<div class="empty-state"><p>Answered prayers will appear here as a reminder of God\'s faithfulness.</p></div>';
+      return;
+    }
+    wall.innerHTML = answered.slice().reverse().map(p => `
+      <div class="prayer-card answered" style="margin-bottom:0.75rem">
+        <div class="prayer-title">${p.title}</div>
+        ${p.answerNote ? `<div style="font-size:0.9rem;color:var(--ac-light);line-height:1.5;font-style:italic">"${p.answerNote}"</div>` : ''}
+        <div style="font-size:0.75rem;color:var(--txt-muted);margin-top:0.4rem">${fmtDate(p.date)}</div>
+      </div>`).join('');
+  }
+
+  renderPrayerList();
+  renderPraiseWall();
+  document.getElementById('prFilterCat').addEventListener('change', renderPrayerList);
+  document.getElementById('prFilterStatus').addEventListener('change', renderPrayerList);
+}
+
+// ═══════════════════════════════════════════════
+// REFLECT TAB — AI Prompts via local Foundry
+// ═══════════════════════════════════════════════
+function renderReflect() {
+  const el = document.getElementById('tab-reflect');
+  const settings = lsGet('settings', { showAI: CONFIG.SHOW_AI_PROMPTS });
+  if (!settings.showAI) {
+    el.innerHTML = '<div class="empty-state"><div class="empty-icon">&#128300;</div><p>AI reflection prompts are turned off. Enable them in Settings.</p></div>';
+    return;
+  }
+
+  // Check if there's enough reading history
+  const log = lsGet('reading_log', []);
+  if (log.length === 0) {
+    el.innerHTML = `<div class="empty-state"><div class="empty-icon">&#128218;</div><p>Spend a few days reading and journaling and your personalized prompts will appear here. The AI companion needs to learn your journey before it can offer meaningful reflections.</p></div>`;
+    return;
+  }
+
+  el.innerHTML = `
+    <div style="display:flex;gap:0.75rem;margin-bottom:1.5rem">
+      <button class="btn" id="genPrompts">Generate Reflection Prompts</button>
+      <button class="btn btn-outline" id="regenPrompts" style="display:none">Regenerate</button>
+    </div>
+    <div id="promptsArea"></div>`;
+
+  document.getElementById('genPrompts').addEventListener('click', generatePrompts);
+  document.getElementById('regenPrompts').addEventListener('click', generatePrompts);
+}
+
+async function generatePrompts() {
+  const area = document.getElementById('promptsArea');
+  const regenBtn = document.getElementById('regenPrompts');
+  area.innerHTML = '<div class="loading-msg">Connecting to local AI...</div>';
+
+  // Gather context
+  const log = lsGet('reading_log', []).slice(-5);
+  const journal = lsGet('journal', []).slice(-3);
+  const thoughts = lsGet('random_thoughts', []).slice(-5);
+
+  // Find most used tags
+  const allTags = {};
+  lsGet('journal', []).forEach(j => { (j.tags || []).forEach(t => { allTags[t] = (allTags[t]||0) + 1; }); });
+  const topTags = Object.entries(allTags).sort((a,b) => b[1]-a[1]).slice(0,5).map(e => e[0]);
+
+  // Active plans context
+  const activePlans = getPlans().filter(p => p.status === 'active');
+
+  const userContext = [];
+  if (log.length) userContext.push('Recent reading: ' + log.map(e => `${displayNameFull(e.book)} ${e.chapter} (${fmtDate(e.date)})`).join(', '));
+  if (journal.length) userContext.push('Recent journal: ' + journal.map(e => `[${e.mood||''}] ${e.text.slice(0,100)}`).join(' | '));
+  if (thoughts.length) userContext.push('Recent thoughts: ' + thoughts.map(t => t.text.slice(0,80)).join(' | '));
+  if (topTags.length) userContext.push('Common themes: ' + topTags.join(', '));
+  if (activePlans.length) {
+    const acctLabels = { low: 'low accountability', med: 'medium accountability', high: 'HIGH accountability — coach them firmly' };
+    const planCtx = activePlans.map(p => {
+      const prog = getPlanProgress(p);
+      const con = getPlanConsistency(p);
+      const acct = p.accountability || 'med';
+      let desc = `[${p.type}] "${p.title}" — ${prog.pct}% done, ${con.pct}% consistent, ${acctLabels[acct]}`;
+      if (p.type === 'challenge') desc += `, habit: ${p.habit}`;
+      if (p.topic) desc += `, topic: ${p.topic}`;
+      if (con.pct < 70 && acct === 'high') desc += ' [FALLING BEHIND — address this directly]';
+      return desc;
+    }).join('; ');
+    userContext.push('Active plans: ' + planCtx);
+  }
+
+  const systemPrompt = `You are a thoughtful Bible study companion. Based on the user's recent reading history and personal reflections, generate exactly 4 reflection prompts that feel genuinely personal to their journey — not generic. Mix tone across three styles: Reflective (slow, deep, contemplative), Conversational (like a study partner noticing something and asking about it), and Challenge (a gentle push to apply or act on what was read). Each prompt must be 1-2 sentences only. Speak directly to the user. Vary how each prompt opens — never start two prompts the same way. Base every prompt specifically on what they have actually been reading and writing, not general Bible study advice. Format your response as JSON array: [{"mode":"Reflective|Conversational|Challenge","text":"..."}]`;
+
+  try {
+    const content = await callAI(systemPrompt, userContext.join('\n'), { temperature: 0.5, max_tokens: 400 });
+
+    // Parse JSON from response (handle markdown code blocks)
+    let prompts;
+    try {
+      const jsonStr = content.replace(/```json?\s*/g, '').replace(/```/g, '').trim();
+      prompts = JSON.parse(jsonStr);
+    } catch(e) {
+      // Fallback: try to extract any JSON array
+      const match = content.match(/\[[\s\S]*\]/);
+      if (match) prompts = JSON.parse(match[0]);
+      else throw new Error('Could not parse AI response');
+    }
+
+    const badgeClass = {'Reflective':'badge-reflective','Conversational':'badge-conversational','Challenge':'badge-challenge'};
+    area.innerHTML = prompts.map(p => `
+      <div class="prompt-card">
+        <span class="prompt-badge ${badgeClass[p.mode] || 'badge-reflective'}">${p.mode}</span>
+        <div class="prompt-text">${p.text}</div>
+        <button class="btn btn-sm btn-outline journal-prompt" data-text="${p.text.replace(/"/g, '&quot;')}">Journal this</button>
+      </div>`).join('');
+
+    regenBtn.style.display = '';
+
+    // Journal-this buttons
+    area.querySelectorAll('.journal-prompt').forEach(btn => {
+      btn.addEventListener('click', () => {
+        // Switch to notes tab, journal sub-tab, pre-fill
+        notesSubTab = 'journal';
+        switchTab('notes');
+        setTimeout(() => {
+          const jText = document.getElementById('jText');
+          if (jText) jText.value = btn.dataset.text + '\n\n';
+        }, 100);
+      });
+    });
+
+  } catch(e) {
+    area.innerHTML = `
+      <div class="card" style="text-align:center;padding:2rem">
+        <div style="font-size:1.5rem;margin-bottom:0.75rem">&#129302;</div>
+        <div style="font-family:Georgia,serif;color:var(--ac-light);margin-bottom:0.5rem">AI Not Available</div>
+        <p style="color:var(--txt-muted);line-height:1.6;font-size:0.9rem">
+          Could not connect to the AI. Open <strong>Settings</strong> (gear icon) to configure your AI connection &mdash; local Foundry, OpenAI, Anthropic, or a custom endpoint.
+        </p>
+      </div>`;
+    if (regenBtn) regenBtn.style.display = '';
+  }
+}
+
+// ═══════════════════════════════════════════════
+// GLOBAL SEARCH
+// ═══════════════════════════════════════════════
+const searchInput = document.getElementById('globalSearch');
+const searchResults = document.getElementById('searchResults');
+
+searchInput.addEventListener('input', debounce(() => {
+  const q = searchInput.value.toLowerCase().trim();
+  if (!q || q.length < 2) { searchResults.classList.remove('open'); return; }
+
+  const results = { notes: [], journal: [], thoughts: [] };
+
+  // Search verse notes
+  const notes = lsGet('verse_notes', {});
+  Object.keys(notes).forEach(k => {
+    if (k.endsWith('_date')) return;
+    if (notes[k].toLowerCase().includes(q) || k.toLowerCase().includes(q)) {
+      const parts = k.split('_');
+      results.notes.push({ ref: `${displayNameFull(parts[0])} ${parts[1]}:${parts[2]}`, text: notes[k], key: k });
+    }
+  });
+
+  // Search journal
+  lsGet('journal', []).forEach(j => {
+    if ((j.text && j.text.toLowerCase().includes(q)) || (j.ref && j.ref.toLowerCase().includes(q))) {
+      results.journal.push({ ref: j.ref || 'General', text: j.text, date: j.date });
+    }
+  });
+
+  // Search thoughts
+  lsGet('random_thoughts', []).forEach(t => {
+    if (t.text.toLowerCase().includes(q)) {
+      results.thoughts.push({ text: t.text, ref: t.reference, date: t.timestamp });
+    }
+  });
+
+  const hasResults = results.notes.length + results.journal.length + results.thoughts.length > 0;
+  if (!hasResults) { searchResults.innerHTML = '<div style="padding:1rem;color:var(--txt-muted);text-align:center">No results</div>'; searchResults.classList.add('open'); return; }
+
+  let html = '';
+  if (results.notes.length) {
+    html += '<div class="search-group-title">Verse Notes</div>';
+    results.notes.slice(0, 5).forEach(n => {
+      html += `<div class="search-item" data-action="note" data-key="${n.key}"><div class="search-ref">${n.ref}</div><div class="search-preview">${n.text.slice(0,80)}</div></div>`;
+    });
+  }
+  if (results.journal.length) {
+    html += '<div class="search-group-title">Journal</div>';
+    results.journal.slice(0, 5).forEach(j => {
+      html += `<div class="search-item" data-action="journal"><div class="search-ref">${j.ref}</div><div class="search-preview">${j.text.slice(0,80)}</div></div>`;
+    });
+  }
+  if (results.thoughts.length) {
+    html += '<div class="search-group-title">Thoughts</div>';
+    results.thoughts.slice(0, 5).forEach(t => {
+      html += `<div class="search-item" data-action="thoughts"><div class="search-preview">${t.text.slice(0,80)}</div></div>`;
+    });
+  }
+  searchResults.innerHTML = html;
+  searchResults.classList.add('open');
+
+  // Click search results
+  searchResults.querySelectorAll('.search-item').forEach(item => {
+    item.addEventListener('click', () => {
+      const action = item.dataset.action;
+      searchResults.classList.remove('open');
+      searchInput.value = '';
+      if (action === 'note') { notesSubTab = 'verse'; switchTab('notes'); }
+      else if (action === 'journal') { notesSubTab = 'journal'; switchTab('notes'); }
+      else { notesSubTab = 'thoughts'; switchTab('notes'); }
+    });
+  });
+}, 300));
+
+// Close search on outside click
+document.addEventListener('click', (e) => {
+  if (!document.getElementById('searchContainer').contains(e.target)) {
+    searchResults.classList.remove('open');
+  }
+});
+
+// ═══════════════════════════════════════════════
+// QUICK CAPTURE FAB
+// ═══════════════════════════════════════════════
+document.getElementById('fabBtn').addEventListener('click', () => {
+  document.getElementById('captureOverlay').classList.add('open');
+  document.getElementById('captureText').focus();
+  // Pre-fill reference if on read tab
+  if (activeTab === 'read' && currentBook) {
+    document.getElementById('captureRef').value = `${displayNameFull(currentBook)} ${currentChapter}`;
+  }
+});
+document.getElementById('captureClose').addEventListener('click', () => {
+  document.getElementById('captureOverlay').classList.remove('open');
+});
+document.getElementById('captureSave').addEventListener('click', () => {
+  const text = document.getElementById('captureText').value.trim();
+  if (!text) return;
+  const ts = lsGet('random_thoughts', []);
+  ts.push({ id: uid(), text, reference: document.getElementById('captureRef').value.trim(), timestamp: new Date().toISOString() });
+  lsSet('random_thoughts', ts);
+  document.getElementById('captureText').value = '';
+  document.getElementById('captureRef').value = '';
+  document.getElementById('captureOverlay').classList.remove('open');
+});
+// Close overlay on background click
+document.getElementById('captureOverlay').addEventListener('click', (e) => {
+  if (e.target === document.getElementById('captureOverlay')) {
+    document.getElementById('captureOverlay').classList.remove('open');
+  }
+});
+
+// ═══════════════════════════════════════════════
+// SETTINGS
+// ═══════════════════════════════════════════════
+// AI config helpers
+const AI_PRESETS = {
+  local: { endpoint: CONFIG.AI_ENDPOINT, model: CONFIG.AI_MODEL, needsKey: false },
+  openai: { endpoint: 'https://api.openai.com/v1/chat/completions', model: 'gpt-4o-mini', needsKey: true },
+  anthropic: { endpoint: 'https://api.anthropic.com/v1/messages', model: 'claude-sonnet-4-20250514', needsKey: true },
+  custom: { endpoint: '', model: '', needsKey: true }
+};
+
+function getAIConfig() {
+  const saved = lsGet('ai_config', null);
+  if (saved) return saved;
+  return { preset: 'local', endpoint: CONFIG.AI_ENDPOINT, model: CONFIG.AI_MODEL, apiKey: '' };
+}
+
+async function callAI(systemPrompt, userMessage, opts = {}) {
+  const ai = getAIConfig();
+  const temp = opts.temperature || 0.5;
+  const maxTokens = opts.max_tokens || 600;
+  const headers = { 'Content-Type': 'application/json' };
+  if (ai.apiKey) headers['Authorization'] = `Bearer ${ai.apiKey}`;
+
+  if (ai.preset === 'anthropic' && ai.endpoint.includes('anthropic.com')) {
+    // Anthropic uses a different format
+    headers['x-api-key'] = ai.apiKey;
+    headers['anthropic-version'] = '2023-06-01';
+    headers['anthropic-dangerous-direct-browser-access'] = 'true';
+    delete headers['Authorization'];
+    const resp = await fetch(ai.endpoint, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        model: ai.model,
+        max_tokens: maxTokens,
+        system: systemPrompt,
+        messages: [{ role: 'user', content: userMessage }]
+      })
+    });
+    if (!resp.ok) throw new Error(`AI error: ${resp.status}`);
+    const data = await resp.json();
+    return data.content[0].text;
+  } else {
+    // OpenAI-compatible format (works for OpenAI, local Foundry, most providers)
+    const resp = await fetch(ai.endpoint, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        model: ai.model,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userMessage }
+        ],
+        temperature: temp,
+        max_tokens: maxTokens
+      })
+    });
+    if (!resp.ok) throw new Error(`AI error: ${resp.status}`);
+    const data = await resp.json();
+    return data.choices[0].message.content;
+  }
+}
+
+document.getElementById('settingsBtn').addEventListener('click', () => {
+  const settings = lsGet('settings', { showAI: CONFIG.SHOW_AI_PROMPTS });
+  document.getElementById('toggleAI').checked = settings.showAI !== false;
+  document.getElementById('toggleTheme').checked = lsGet('theme', 'dark') === 'light';
+  // Load AI config
+  const ai = getAIConfig();
+  document.getElementById('aiPreset').value = ai.preset || 'local';
+  document.getElementById('aiEndpointInput').value = ai.endpoint || '';
+  document.getElementById('aiModelInput').value = ai.model || '';
+  document.getElementById('aiKeyInput').value = ai.apiKey || '';
+  document.getElementById('settingsOverlay').classList.add('open');
+});
+document.getElementById('settingsClose').addEventListener('click', () => {
+  document.getElementById('settingsOverlay').classList.remove('open');
+});
+document.getElementById('settingsOverlay').addEventListener('click', (e) => {
+  if (e.target === document.getElementById('settingsOverlay')) {
+    document.getElementById('settingsOverlay').classList.remove('open');
+  }
+});
+document.getElementById('toggleAI').addEventListener('change', function() {
+  const settings = lsGet('settings', { showAI: true });
+  settings.showAI = this.checked;
+  lsSet('settings', settings);
+});
+
+// AI preset selector
+document.getElementById('aiPreset').addEventListener('change', function() {
+  const preset = AI_PRESETS[this.value];
+  if (preset) {
+    document.getElementById('aiEndpointInput').value = preset.endpoint;
+    document.getElementById('aiModelInput').value = preset.model;
+    if (!preset.needsKey) document.getElementById('aiKeyInput').value = '';
+  }
+});
+document.getElementById('aiSaveBtn').addEventListener('click', () => {
+  const config = {
+    preset: document.getElementById('aiPreset').value,
+    endpoint: document.getElementById('aiEndpointInput').value.trim(),
+    model: document.getElementById('aiModelInput').value.trim(),
+    apiKey: document.getElementById('aiKeyInput').value.trim()
+  };
+  lsSet('ai_config', config);
+  const btn = document.getElementById('aiSaveBtn');
+  btn.textContent = 'Saved!';
+  setTimeout(() => { btn.textContent = 'Save AI Settings'; }, 1200);
+});
+
+// Theme toggle — settings checkbox
+document.getElementById('toggleTheme').addEventListener('change', function() {
+  const theme = this.checked ? 'light' : 'dark';
+  lsSet('theme', theme);
+  applyTheme(theme === 'light');
+  updateThemeIcon(theme);
+});
+
+// Theme toggle — header button
+function updateThemeIcon(theme) {
+  document.getElementById('themeBtn').innerHTML = theme === 'light' ? '&#9790;' : '&#9788;';
+}
+document.getElementById('themeBtn').addEventListener('click', () => {
+  const current = lsGet('theme', 'dark');
+  const next = current === 'dark' ? 'light' : 'dark';
+  lsSet('theme', next);
+  applyTheme(next === 'light');
+  updateThemeIcon(next);
+});
+// Set initial icon
+updateThemeIcon(lsGet('theme', 'dark'));
+
+// Export
+document.getElementById('exportBtn').addEventListener('click', () => {
+  const data = {};
+  const keys = ['reading_log','book_status','verse_notes','journal','random_thoughts','prayers','settings','theme','read_marks','plans','ai_config'];
+  keys.forEach(k => { data[k] = lsGet(k, null); });
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const d = new Date();
+  a.href = url;
+  a.download = `bible-tracker-backup-${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+});
+
+// Import
+document.getElementById('importFile').addEventListener('change', function() {
+  const file = this.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const data = JSON.parse(e.target.result);
+      Object.keys(data).forEach(k => {
+        if (data[k] !== null) lsSet(k, data[k]);
+      });
+      alert('Data imported successfully. Refreshing...');
+      location.reload();
+    } catch(err) {
+      alert('Invalid backup file.');
+    }
+  };
+  reader.readAsText(file);
+});
+
+// Clear all
+document.getElementById('clearBtn').addEventListener('click', () => {
+  if (!confirm('This will delete ALL your reading history, notes, journal entries, and prayers. Are you sure?')) return;
+  if (!confirm('Really? This cannot be undone.')) return;
+  const keys = ['reading_log','book_status','verse_notes','journal','random_thoughts','prayers','settings','has_visited','theme','read_marks'];
+  keys.forEach(k => { try { localStorage.removeItem('bt_' + k); } catch(e) {} });
+  location.reload();
+});
+
+// ═══════════════════════════════════════════════
+// WELCOME SCREEN
+// ═══════════════════════════════════════════════
+(function checkWelcome() {
+  if (!lsGet('has_visited', false)) {
+    document.getElementById('welcomeScreen').style.display = '';
+    document.getElementById('welcomeStart').addEventListener('click', () => {
+      lsSet('has_visited', true);
+      document.getElementById('welcomeScreen').style.display = 'none';
+      renderTab('read');
+    });
+  }
+})();
+
+// ═══════════════════════════════════════════════
+// INIT — render first tab
+// ═══════════════════════════════════════════════
+renderTab('read');
+updateBanner();
+
+// AI status dot — ping on load then every 60s
+async function checkAIStatus() {
+  const dot = document.getElementById('aiDot');
+  const ai = getAIConfig();
+  if (!ai.endpoint) { dot.style.background = 'var(--txt-muted)'; dot.title = 'AI: not configured'; return; }
+  try {
+    const controller = new AbortController();
+    setTimeout(() => controller.abort(), 3000);
+    const resp = await fetch(ai.endpoint.replace('/chat/completions', '/models').replace('/messages', '/models'), { signal: controller.signal, headers: ai.apiKey ? { 'Authorization': `Bearer ${ai.apiKey}` } : {} });
+    if (resp.ok || resp.status === 401 || resp.status === 403) {
+      // 401/403 = reachable but bad key — still "connected"
+      if (resp.ok) { dot.style.background = '#4a9a4a'; dot.title = 'AI: connected'; }
+      else { dot.style.background = '#c4854a'; dot.title = 'AI: reachable but check API key'; }
+    } else { dot.style.background = '#9a4a4a'; dot.title = 'AI: error (' + resp.status + ')'; }
+  } catch(e) {
+    dot.style.background = '#9a4a4a';
+    dot.title = 'AI: offline — configure in Settings';
+  }
+}
+checkAIStatus();
+setInterval(checkAIStatus, 60000);
+</script>
+</body>
+</html>
